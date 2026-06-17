@@ -3,8 +3,7 @@
 // Dùng cho Render.com - CHỈ DỰ ĐOÁN 1 LẦN/PHIÊN
 // ============================================================
 
-const axios = require('axios');
-const https = require('https');
+
 
 // ============================================================
 // CẤU HÌNH
@@ -770,27 +769,9 @@ class PredictorService {
 }
 
 // ============================================================
-// MAIN - GỌI API VỚI AXIOS
+// MAIN - GỌI API VỚI FETCH
 // ============================================================
-const axiosInstance = axios.create({
-    timeout: 15000,
-    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-    headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'vi-VN,vi;q=0.9'
-    }
-});
-
-let predictor = null;
-try {
-    predictor = new PredictorService([]);
-    console.log('[OK] PredictorService initialized.');
-} catch (e) {
-    console.error('[ERR] PredictorService not available:', e.message);
-    process.exit(1);
-}
-
+let predictor = new PredictorService([]);
 let lastPhien = null;
 let isProcessing = false;
 
@@ -799,62 +780,69 @@ async function fetchAndPredict() {
     isProcessing = true;
 
     try {
-        const response = await axiosInstance.get(CONFIG.API_URL);
-        const obj = response.data;
+        const response = await fetch(CONFIG.API_URL, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json',
+                'Accept-Language': 'vi-VN,vi;q=0.9'
+            }
+        });
+
+        if (!response.ok) {
+            isProcessing = false;
+            return;
+        }
+
+        const obj = await response.json();
 
         const round = {
-            Phien: obj.phien || obj.Phien || obj.id || null,
-            Xuc_xac_1: obj.xuc_xac_1 !== undefined ? obj.xuc_xac_1 : (obj.Xuc_xac_1 !== undefined ? obj.Xuc_xac_1 : null),
-            Xuc_xac_2: obj.xuc_xac_2 !== undefined ? obj.xuc_xac_2 : (obj.Xuc_xac_2 !== undefined ? obj.Xuc_xac_2 : null),
-            Xuc_xac_3: obj.xuc_xac_3 !== undefined ? obj.xuc_xac_3 : (obj.Xuc_xac_3 !== undefined ? obj.Xuc_xac_3 : null),
-            Tong: obj.tong !== undefined ? obj.tong : (obj.Tong !== undefined ? obj.Tong : null),
-            Ket_qua: obj.ket_qua || obj.Ket_qua || obj.result || null,
-            raw: obj
+            Phien: obj.phien || obj.Phien || null,
+            Xuc_xac_1: obj.xuc_xac_1 || obj.Xuc_xac_1 || 0,
+            Xuc_xac_2: obj.xuc_xac_2 || obj.Xuc_xac_2 || 0,
+            Xuc_xac_3: obj.xuc_xac_3 || obj.Xuc_xac_3 || 0,
+            Tong: obj.tong || obj.Tong || 0,
+            Ket_qua: obj.ket_qua || obj.Ket_qua || null
         };
 
-        // CHỈ XỬ LÝ KHI CÓ PHIÊN MỚI VÀ ĐỦ DỮ LIỆU
-        if (round.Phien && round.Phien !== lastPhien) {
-            if (round.Xuc_xac_1 !== null && round.Xuc_xac_2 !== null && round.Xuc_xac_3 !== null) {
-                if (round.Tong === null) {
-                    round.Tong = Number(round.Xuc_xac_1) + Number(round.Xuc_xac_2) + Number(round.Xuc_xac_3);
-                }
-
-                lastPhien = round.Phien;
-
-                // Học dữ liệu
-                try { predictor.learn(round); } catch (e) { console.error('[ERR] learn:', e.message); }
-
-                // Dự đoán - CHỈ 1 LẦN DUY NHẤT
-                let out = null;
-                try { out = predictor.predict(); } catch (e) { console.error('[ERR] predict:', e.message); }
-
-                const exportObj = {
-                    Phien: round.Phien,
-                    Xuc_xac1: round.Xuc_xac_1,
-                    Xuc_xac2: round.Xuc_xac_2,
-                    Xuc_xac3: round.Xuc_xac_3,
-                    Tong: round.Tong,
-                    Ketqua: round.Ket_qua || 'Chưa có',
-                    Du_doan: out && out.prediction ? out.prediction : null,
-                    cre: CONFIG.CREATOR_ID,
-                    meta: {
-                        timestamp: new Date().toISOString(),
-                        reason: out && out.reason ? out.reason : undefined,
-                        confidence: out && out.confidence !== undefined ? out.confidence : undefined
-                    }
-                };
-                console.log('🎯 PREDICTION:', JSON.stringify(exportObj));
+        if (round.Phien && round.Phien !== lastPhien && round.Xuc_xac_1 > 0) {
+            if (round.Tong === 0) {
+                round.Tong = round.Xuc_xac_1 + round.Xuc_xac_2 + round.Xuc_xac_3;
             }
+
+            lastPhien = round.Phien;
+
+            try { predictor.learn(round); } catch (e) { /* ignore */ }
+
+            let out = null;
+            try { out = predictor.predict(); } catch (e) { /* ignore */ }
+
+            const exportObj = {
+                Phien: round.Phien,
+                Xuc_xac1: round.Xuc_xac_1,
+                Xuc_xac2: round.Xuc_xac_2,
+                Xuc_xac3: round.Xuc_xac_3,
+                Tong: round.Tong,
+                Ketqua: round.Ket_qua || 'Chưa có',
+                Du_doan: out && out.prediction ? out.prediction : null,
+                cre: CONFIG.CREATOR_ID,
+                meta: {
+                    timestamp: new Date().toISOString(),
+                    reason: out && out.reason ? out.reason : 'Không có lý do',
+                    confidence: out && out.confidence !== undefined ? out.confidence : 0
+                }
+            };
+
+            console.log(JSON.stringify(exportObj));
         }
     } catch (error) {
-        console.error('[ERR] API request failed:', error.message);
+        // Silent fail
     }
 
     isProcessing = false;
 }
 
 // ============================================================
-// START
+// START POLLING
 // ============================================================
 console.log('🚀 API Predictor started');
 console.log(`📡 API: ${CONFIG.API_URL}`);
@@ -862,9 +850,27 @@ console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
 console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
 console.log('─────────────────────────────');
 
-// Chạy lần đầu
 setTimeout(fetchAndPredict, 1000);
 setInterval(fetchAndPredict, CONFIG.POLL_INTERVAL);
 
-// Giữ process chạy
+// ============================================================
+// GIỮ CỔNG MỞ CHO RENDER WEB SERVICE
+// ============================================================
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.get('/', (req, res) => {
+    res.json({
+        status: 'running',
+        message: 'API Predictor is running',
+        time: new Date().toISOString()
+    });
+});
+
+app.listen(PORT, () => {
+    console.log(`✅ Web server running on port ${PORT}`);
+    console.log(`📡 Health check: /`);
+});
+
 process.stdin.resume();

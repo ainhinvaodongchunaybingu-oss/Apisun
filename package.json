@@ -1,13 +1,12 @@
 {
-  "name": "apisun",
+  "name": "api-predict-render",
   "version": "1.0.0",
-  "description": "API Sunwin - Lấy dữ liệu từ 2 nguồn",
+  "description": "Dự đoán Tài/Xỉu từ API - Render",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "node-fetch": "^2.6.7"
+    "axios": "^1.6.0"
   }
 }

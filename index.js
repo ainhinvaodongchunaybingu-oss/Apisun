@@ -1,8 +1,9 @@
 // ============================================================
-// apisun.js - Lấy dữ liệu từ cả 2 API cùng lúc
+// apisun.js - Lấy dữ liệu từ cả 2 API (Fix kết nối)
 // ============================================================
 const express = require('express');
 const fetch = require('node-fetch');
+const https = require('https');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -10,29 +11,59 @@ const PORT = process.env.PORT || 10000;
 // CẤU HÌNH API
 // ============================================================
 const CONFIG = {
+    // API 1 - Hoạt động tốt
     api1: "http://103.249.117.201:49483/sunwin/tx?key=8e05cbaa4c25ebd5d69fef94130c5881b52fdc8f3bcaf479",
-    api2: "https://skidvn.com/proxy.php?game_id=1",
-    timeout: 8000,
+    
+    // API 2 - Dùng proxy để vượt Cloudflare
+    api2: "https://api.allorigins.win/raw?url=https://skidvn.com/proxy.php?game_id=1",
+    
+    // API 2 trực tiếp (dự phòng)
+    api2_direct: "https://skidvn.com/proxy.php?game_id=1",
+    
+    timeout: 15000,
     retries: 2
 };
 
 // ============================================================
-// HÀM FETCH DỮ LIỆU
+// HÀM FETCH VỚI RETRY + AGENT SSL
 // ============================================================
-async function fetchWithRetry(url, retries = CONFIG.retries) {
+const agent = new https.Agent({
+    rejectUnauthorized: false,
+    keepAlive: true
+});
+
+async function fetchWithRetry(url, retries = CONFIG.retries, useProxy = true) {
+    // Nếu là api2_direct và có proxy, dùng proxy
+    let finalUrl = url;
+    if (url === CONFIG.api2_direct && useProxy) {
+        finalUrl = CONFIG.api2;
+        console.log(`🔄 Dùng proxy cho API 2`);
+    }
+    
     for (let i = 0; i < retries; i++) {
         try {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), CONFIG.timeout);
             
-            const response = await fetch(url, {
+            const response = await fetch(finalUrl, {
                 method: 'GET',
+                agent: agent,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': 'application/json',
-                    'Accept-Language': 'vi-VN,vi;q=0.9',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'application/json, text/plain, */*',
+                    'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8',
+                    'Accept-Encoding': 'gzip, deflate, br',
                     'Referer': 'https://skidvn.com/',
-                    'Origin': 'https://skidvn.com'
+                    'Origin': 'https://skidvn.com',
+                    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120"',
+                    'Sec-Ch-Ua-Mobile': '?0',
+                    'Sec-Ch-Ua-Platform': '"Windows"',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Site': 'same-origin',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Connection': 'keep-alive'
                 },
                 signal: controller.signal
             });
@@ -40,16 +71,25 @@ async function fetchWithRetry(url, retries = CONFIG.retries) {
             clearTimeout(timeout);
             
             if (!response.ok) {
-                console.log(`⚠️ HTTP ${response.status} - ${url}`);
+                console.log(`⚠️ HTTP ${response.status} - ${finalUrl}`);
+                if (i === retries - 1 && url === CONFIG.api2_direct) {
+                    // Thử lại với proxy
+                    return fetchWithRetry(url, 1, true);
+                }
                 continue;
             }
             
             const data = await response.json();
-            console.log(`✅ Thành công: ${url}`);
+            console.log(`✅ Thành công: ${finalUrl}`);
             return data;
             
         } catch (error) {
             console.log(`⚠️ Lỗi (lần ${i+1}): ${error.message}`);
+            if (i === retries - 1 && url === CONFIG.api2_direct) {
+                // Thử lại với proxy
+                console.log(`🔄 Thử lại API 2 với proxy...`);
+                return fetchWithRetry(url, 1, true);
+            }
             if (i === retries - 1) return null;
             await new Promise(r => setTimeout(r, 1000 * (i + 1)));
         }
@@ -94,24 +134,20 @@ function extractData(raw) {
 // SO SÁNH VÀ CHỌN DỮ LIỆU TỐT NHẤT
 // ============================================================
 function selectBestData(extracted1, extracted2) {
-    // Điểm số: phien (10đ), xx1+xx2+xx3 (5đ)
     let score1 = 0, score2 = 0;
     
-    // API 1
     if (extracted1) {
-        if (extracted1.phien && extracted1.phien !== 'null') score1 += 10;
+        if (extracted1.phien && extracted1.phien !== 'null' && extracted1.phien !== '???') score1 += 10;
         if (extracted1.xx1 > 0 || extracted1.xx2 > 0 || extracted1.xx3 > 0) score1 += 5;
     }
     
-    // API 2
     if (extracted2) {
-        if (extracted2.phien && extracted2.phien !== 'null') score2 += 10;
+        if (extracted2.phien && extracted2.phien !== 'null' && extracted2.phien !== '???') score2 += 10;
         if (extracted2.xx1 > 0 || extracted2.xx2 > 0 || extracted2.xx3 > 0) score2 += 5;
     }
     
     console.log(`📊 Điểm API 1: ${score1}, API 2: ${score2}`);
     
-    // Chọn API có điểm cao hơn
     if (score1 >= score2 && extracted1) {
         return { data: extracted1, source: 'API 1', score: score1 };
     } else if (extracted2) {
@@ -135,7 +171,7 @@ app.get('/apisun', async (req, res) => {
         // ===== GỌI CẢ 2 API SONG SONG =====
         const [data1, data2] = await Promise.all([
             fetchWithRetry(CONFIG.api1),
-            fetchWithRetry(CONFIG.api2)
+            fetchWithRetry(CONFIG.api2_direct) // Sẽ tự động dùng proxy nếu cần
         ]);
         
         // ===== EXTRACT DỮ LIỆU =====
@@ -158,9 +194,7 @@ app.get('/apisun', async (req, res) => {
                 tong: 0,
                 ketqua: '???',
                 error: true,
-                message: 'Không lấy được dữ liệu từ API',
-                api1_status: extracted1 ? 'có dữ liệu' : 'lỗi',
-                api2_status: extracted2 ? 'có dữ liệu' : 'lỗi'
+                message: 'Không lấy được dữ liệu từ API'
             });
             return;
         }
@@ -172,9 +206,7 @@ app.get('/apisun', async (req, res) => {
             xx2: best.data.xx2 || 0,
             xx3: best.data.xx3 || 0,
             tong: best.data.tong || 0,
-            ketqua: best.data.ketqua || '???',
-            _source: best.source,
-            _score: best.score
+            ketqua: best.data.ketqua || '???'
         };
         
         console.log(`📤 Output (${best.source} - điểm ${best.score}):`, output);
@@ -196,7 +228,7 @@ app.get('/apisun', async (req, res) => {
 });
 
 // ============================================================
-// ENDPOINT TEST - /test (Xem dữ liệu thô từ cả 2 API)
+// ENDPOINT TEST - /test
 // ============================================================
 app.get('/test', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
@@ -204,7 +236,7 @@ app.get('/test', async (req, res) => {
     
     const [data1, data2] = await Promise.all([
         fetchWithRetry(CONFIG.api1),
-        fetchWithRetry(CONFIG.api2)
+        fetchWithRetry(CONFIG.api2_direct)
     ]);
     
     const extracted1 = data1 ? extractData(data1) : null;
@@ -222,7 +254,11 @@ app.get('/test', async (req, res) => {
             extracted: extracted2
         },
         best: best,
-        config: CONFIG
+        config: {
+            api1: CONFIG.api1,
+            api2_direct: CONFIG.api2_direct,
+            api2_proxy: CONFIG.api2
+        }
     });
 });
 
@@ -250,6 +286,7 @@ setInterval(() => {
 // ============================================================
 app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📡 /apisun - Dữ liệu chính (chọn API tốt nhất)`);
-    console.log(`🔧 /test - Debug (xem cả 2 API)`);
+    console.log(`📡 /apisun - Dữ liệu chính`);
+    console.log(`🔧 /test - Debug`);
+    console.log(`🌐 Proxy API 2: ${CONFIG.api2}`);
 });

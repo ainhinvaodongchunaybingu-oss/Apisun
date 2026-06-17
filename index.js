@@ -1,25 +1,23 @@
 // ============================================================
-// apisun.js - Tối ưu cho Render Free
-// Tự động keep-alive, xử lý lỗi, fallback dữ liệu mẫu
+// apisun.js - Chỉ lấy phiên thật từ API, không tạo phiên ảo
 // ============================================================
-
 const express = require('express');
 const fetch = require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 // ============================================================
-// CẤU HÌNH
+// CẤU HÌNH API
 // ============================================================
 const CONFIG = {
     api1: "http://103.249.117.201:49483/sunwin/tx?key=8e05cbaa4c25ebd5d69fef94130c5881b52fdc8f3bcaf479",
     api2: "https://skidvn.com/proxy.php?game_id=1",
-    timeout: 10000,
+    timeout: 8000,
     retries: 2
 };
 
 // ============================================================
-// HÀM FETCH VỚI RETRY
+// HÀM FETCH DỮ LIỆU
 // ============================================================
 async function fetchWithRetry(url, retries = CONFIG.retries) {
     for (let i = 0; i < retries; i++) {
@@ -60,7 +58,7 @@ async function fetchWithRetry(url, retries = CONFIG.retries) {
 }
 
 // ============================================================
-// HÀM EXTRACT DỮ LIỆU
+// HÀM EXTRACT DỮ LIỆU - CHỈ LẤY PHIEN THẬT
 // ============================================================
 function extractData(raw) {
     // Tìm dữ liệu bên trong
@@ -73,8 +71,8 @@ function extractData(raw) {
     const xx2 = parseInt(data.xuc_xac_2) || 0;
     const xx3 = parseInt(data.xuc_xac_3) || 0;
     
-    // Lấy phiên
-    let phien = '???';
+    // ===== CHỈ LẤY PHIEN THẬT, KHÔNG TẠO ẢO =====
+    let phien = null;
     if (data.phien_hien_tai && data.phien_hien_tai !== 'null' && data.phien_hien_tai !== '') {
         phien = data.phien_hien_tai;
     } else if (data.phien && data.phien !== 'null' && data.phien !== '') {
@@ -90,24 +88,6 @@ function extractData(raw) {
     else if (tong === 11) ketqua = 'Tài';
     
     return { phien, xx1, xx2, xx3, tong, ketqua };
-}
-
-// ============================================================
-// DỮ LIỆU MẪU (FALLBACK KHI API LỖI)
-// ============================================================
-function getFallbackData() {
-    const now = new Date();
-    const seed = now.getMinutes() * 60 + now.getSeconds();
-    const xx1 = (seed % 6) + 1;
-    const xx2 = ((seed * 3) % 6) + 1;
-    const xx3 = ((seed * 7) % 6) + 1;
-    const tong = xx1 + xx2 + xx3;
-    const ketqua = tong < 11 ? 'Xỉu' : 'Tài';
-    
-    return {
-        phien: String(1000000 + Math.floor(seed * 100) % 9000000),
-        xx1, xx2, xx3, tong, ketqua
-    };
 }
 
 // ============================================================
@@ -132,34 +112,47 @@ app.get('/apisun', async (req, res) => {
         const extracted2 = data2 ? extractData(data2) : null;
         
         let result = null;
+        let source = 'none';
         
-        // Ưu tiên API 2 (có phien)
-        if (extracted2 && extracted2.phien !== '???') {
+        // ===== ƯU TIÊN LẤY DỮ LIỆU CÓ PHIEN THẬT =====
+        if (extracted2 && extracted2.phien !== null) {
             result = extracted2;
-            console.log('✅ Dùng API 2');
-            
-            // Nếu xx = 0, lấy từ API 1
-            if (result.xx1 === 0 && result.xx2 === 0 && result.xx3 === 0 && extracted1) {
-                result.xx1 = extracted1.xx1;
-                result.xx2 = extracted1.xx2;
-                result.xx3 = extracted1.xx3;
-                result.tong = extracted1.tong;
-                result.ketqua = extracted1.ketqua;
-                console.log('🔄 Lấy xx từ API 1');
-            }
-        } else if (extracted1) {
+            source = 'API 2 (có phien)';
+            console.log('✅ Dùng API 2 - có phien thật');
+        } else if (extracted1 && extracted1.phien !== null) {
             result = extracted1;
-            console.log('✅ Dùng API 1');
+            source = 'API 1 (có phien)';
+            console.log('✅ Dùng API 1 - có phien thật');
+        } else if (extracted2 && extracted2.xx1 > 0) {
+            // API 2 có xx nhưng không có phien
+            result = extracted2;
+            source = 'API 2 (ko phien)';
+            console.log('⚠️ Dùng API 2 - không có phien');
+        } else if (extracted1 && extracted1.xx1 > 0) {
+            result = extracted1;
+            source = 'API 1 (ko phien)';
+            console.log('⚠️ Dùng API 1 - không có phien');
         }
         
-        // Nếu cả 2 đều lỗi, dùng dữ liệu mẫu
+        // Nếu không có dữ liệu từ API
         if (!result) {
-            console.log('⚠️ Cả 2 API lỗi, dùng fallback');
-            result = getFallbackData();
-            result._fallback = true;
+            console.log('❌ Không có dữ liệu từ API');
+            // KHÔNG TẠO FALLBACK, trả về lỗi
+            res.status(503).json({
+                phien: '???',
+                xx1: 0,
+                xx2: 0,
+                xx3: 0,
+                tong: 0,
+                ketqua: '???',
+                error: true,
+                message: 'Không lấy được dữ liệu từ API'
+            });
+            return;
         }
         
-        // Xuất kết quả
+        // ===== KHÔNG TẠO PHIÊN ẢO =====
+        // Nếu phien là null hoặc rỗng, giữ nguyên null (sẽ hiển thị ???)
         const output = {
             phien: result.phien || '???',
             xx1: result.xx1 || 0,
@@ -169,20 +162,26 @@ app.get('/apisun', async (req, res) => {
             ketqua: result.ketqua || '???'
         };
         
-        console.log('📤 Output:', output);
+        // Thêm warning nếu không có phien
+        if (!result.phien) {
+            output._warning = 'Không có phiên thật từ API';
+        }
+        
+        console.log(`📤 Output (${source}):`, output);
         res.json(output);
         
     } catch (error) {
         console.log('❌ Lỗi:', error.message);
-        // Dùng fallback khi có lỗi
-        const fallback = getFallbackData();
-        res.json({
-            phien: fallback.phien,
-            xx1: fallback.xx1,
-            xx2: fallback.xx2,
-            xx3: fallback.xx3,
-            tong: fallback.tong,
-            ketqua: fallback.ketqua
+        // KHÔNG TẠO FALLBACK, trả về lỗi
+        res.status(500).json({
+            phien: '???',
+            xx1: 0,
+            xx2: 0,
+            xx3: 0,
+            tong: 0,
+            ketqua: '???',
+            error: true,
+            message: error.message
         });
     }
 });
@@ -200,11 +199,10 @@ app.get('/test', async (req, res) => {
     ]);
     
     res.json({
-        api1: data1 || { error: 'Không lấy được' },
-        api2: data2 || { error: 'Không lấy được' },
+        api1_raw: data1,
+        api2_raw: data2,
         extracted1: data1 ? extractData(data1) : null,
         extracted2: data2 ? extractData(data2) : null,
-        fallback: getFallbackData(),
         time: new Date().toISOString()
     });
 });
@@ -222,18 +220,17 @@ app.get('/', (req, res) => {
 });
 
 // ============================================================
-// KEEP-ALIVE (Chống Render Free ngủ)
+// KEEP-ALIVE
 // ============================================================
 setInterval(() => {
     console.log('💓 Keep-alive ping...');
-}, 300000); // 5 phút
+}, 300000);
 
 // ============================================================
 // START SERVER
 // ============================================================
 app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📡 /apisun - Dữ liệu chính`);
+    console.log(`📡 /apisun - Dữ liệu chính (không tạo phiên ảo)`);
     console.log(`🔧 /test - Debug`);
-    console.log(`💓 Keep-alive mỗi 5 phút`);
 });

@@ -3,7 +3,9 @@
 // Dùng cho Render.com - CHỈ DỰ ĐOÁN 1 LẦN/PHIÊN
 // ============================================================
 
-
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 10000;
 
 // ============================================================
 // CẤU HÌNH
@@ -774,6 +776,8 @@ class PredictorService {
 let predictor = new PredictorService([]);
 let lastPhien = null;
 let isProcessing = false;
+let latestRound = null;
+let latestPrediction = null;
 
 async function fetchAndPredict() {
     if (isProcessing) return;
@@ -810,29 +814,11 @@ async function fetchAndPredict() {
             }
 
             lastPhien = round.Phien;
+            latestRound = round;
 
             try { predictor.learn(round); } catch (e) { /* ignore */ }
 
-            let out = null;
-            try { out = predictor.predict(); } catch (e) { /* ignore */ }
-
-            const exportObj = {
-                Phien: round.Phien,
-                Xuc_xac1: round.Xuc_xac_1,
-                Xuc_xac2: round.Xuc_xac_2,
-                Xuc_xac3: round.Xuc_xac_3,
-                Tong: round.Tong,
-                Ketqua: round.Ket_qua || 'Chưa có',
-                Du_doan: out && out.prediction ? out.prediction : null,
-                cre: CONFIG.CREATOR_ID,
-                meta: {
-                    timestamp: new Date().toISOString(),
-                    reason: out && out.reason ? out.reason : 'Không có lý do',
-                    confidence: out && out.confidence !== undefined ? out.confidence : 0
-                }
-            };
-
-            console.log(JSON.stringify(exportObj));
+            try { latestPrediction = predictor.predict(); } catch (e) { /* ignore */ }
         }
     } catch (error) {
         // Silent fail
@@ -842,24 +828,10 @@ async function fetchAndPredict() {
 }
 
 // ============================================================
-// START POLLING
+// EXPRESS ROUTES
 // ============================================================
-console.log('🚀 API Predictor started');
-console.log(`📡 API: ${CONFIG.API_URL}`);
-console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
-console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
-console.log('─────────────────────────────');
 
-setTimeout(fetchAndPredict, 1000);
-setInterval(fetchAndPredict, CONFIG.POLL_INTERVAL);
-
-// ============================================================
-// GIỮ CỔNG MỞ CHO RENDER WEB SERVICE
-// ============================================================
-const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 10000;
-
+// Health check
 app.get('/', (req, res) => {
     res.json({
         status: 'running',
@@ -868,9 +840,71 @@ app.get('/', (req, res) => {
     });
 });
 
+// Endpoint lấy dự đoán mới nhất
+app.get('/predict', (req, res) => {
+    if (!latestRound || !latestPrediction) {
+        return res.json({
+            status: 'waiting',
+            message: 'Chưa có dữ liệu, đang chờ phiên mới...',
+            time: new Date().toISOString()
+        });
+    }
+
+    const exportObj = {
+        Phien: latestRound.Phien,
+        Xuc_xac1: latestRound.Xuc_xac_1,
+        Xuc_xac2: latestRound.Xuc_xac_2,
+        Xuc_xac3: latestRound.Xuc_xac_3,
+        Tong: latestRound.Tong,
+        Ketqua: latestRound.Ket_qua || 'Chưa có',
+        Du_doan: latestPrediction.prediction || null,
+        cre: CONFIG.CREATOR_ID,
+        meta: {
+            timestamp: new Date().toISOString(),
+            reason: latestPrediction.reason || 'Không có lý do',
+            confidence: latestPrediction.confidence || 0
+        }
+    };
+
+    res.json(exportObj);
+});
+
+// Endpoint lấy lịch sử
+app.get('/history', (req, res) => {
+    const history = predictor.history.map(h => ({
+        Phien: h.Phien,
+        Xuc_xac1: h.Xuc_xac_1,
+        Xuc_xac2: h.Xuc_xac_2,
+        Xuc_xac3: h.Xuc_xac_3,
+        Tong: h.Tong,
+        Ketqua: h.Ket_qua
+    }));
+    res.json({
+        total: history.length,
+        history: history.slice(-20) // 20 phiên gần nhất
+    });
+});
+
+// ============================================================
+// START
+// ============================================================
+console.log('🚀 API Predictor started');
+console.log(`📡 API: ${CONFIG.API_URL}`);
+console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
+console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
+console.log(`📊 Endpoints:`);
+console.log(`   /        - Health check`);
+console.log(`   /predict - Dự đoán mới nhất`);
+console.log(`   /history - Lịch sử 20 phiên`);
+console.log('─────────────────────────────');
+
+// Chạy polling
+setTimeout(fetchAndPredict, 1000);
+setInterval(fetchAndPredict, CONFIG.POLL_INTERVAL);
+
+// Start server
 app.listen(PORT, () => {
     console.log(`✅ Web server running on port ${PORT}`);
-    console.log(`📡 Health check: /`);
 });
 
 process.stdin.resume();

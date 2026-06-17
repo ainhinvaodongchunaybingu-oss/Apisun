@@ -1,0 +1,5 @@
+pyTelegramBotAPI==4.19.0
+requests==2.31.0
+pytz==2024.1
+certifi==2024.2.2
+urllib3==2.2.1

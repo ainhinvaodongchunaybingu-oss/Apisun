@@ -6,8 +6,8 @@
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 10000;
+
 // CORS - CHO PHÉP TẤT CẢ DOMAIN KẾT NỐI
-// ============================================================
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -18,6 +18,7 @@ app.use((req, res, next) => {
     }
     next();
 });
+
 // ============================================================
 // CẤU HÌNH
 // ============================================================
@@ -35,6 +36,24 @@ const CONFIG = {
     MODELS: ['markov', 'run_length', 'momentum', 'pattern'],
     CREATOR_ID: '@bucactaodi'
 };
+
+// ============================================================
+// CHỐNG NGỦ RENDER
+// ============================================================
+let keepAliveCount = 0;
+
+// Tự động ping chính nó mỗi 5 phút để tránh sleep
+setInterval(() => {
+    const pingUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    fetch(`${pingUrl}/`)
+        .then(() => {
+            keepAliveCount++;
+            console.log(`💓 Keep-alive ping #${keepAliveCount} at ${new Date().toISOString()}`);
+        })
+        .catch(() => {
+            // Silent fail
+        });
+}, 300000); // 5 phút
 
 // ============================================================
 // UTILITIES
@@ -134,10 +153,12 @@ class RunLengthModel {
 // ============================================================
 class MomentumModel {
     predictProba(seq) {
-        const nShort = 5, nMid = 15;
+        const nShort = 5,
+            nMid = 15;
         const s1 = last(seq, nShort);
         const s2 = last(seq, nMid);
-        const c1 = counts(s1), c2 = counts(s2);
+        const c1 = counts(s1),
+            c2 = counts(s2);
         const scoreShort = (c1.T - c1.X) / (nShort || 1);
         const scoreMid = (c2.T - c2.X) / (nMid || 1);
         let momentum = 0.7 * scoreShort + 0.3 * scoreMid;
@@ -460,7 +481,7 @@ function matchManualPattern(totals) {
 }
 
 // ============================================================
-// DU_DOAN_JS
+// DU_DOAN_JS - FIX LỖI
 // ============================================================
 let PATTERN_MEMORY = {};
 let ERROR_MEMORY = {};
@@ -782,7 +803,7 @@ class PredictorService {
 }
 
 // ============================================================
-// MAIN - GỌI API VỚI FETCH
+// KHỞI TẠO PREDICTOR
 // ============================================================
 let predictor = new PredictorService([]);
 let lastPhien = null;
@@ -790,6 +811,9 @@ let isProcessing = false;
 let latestRound = null;
 let latestPrediction = null;
 
+// ============================================================
+// GỌI API
+// ============================================================
 async function fetchAndPredict() {
     if (isProcessing) return;
     isProcessing = true;
@@ -847,7 +871,8 @@ app.get('/', (req, res) => {
     res.json({
         status: 'running',
         message: 'API Predictor is running',
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
+        keepAlive: keepAliveCount
     });
 });
 
@@ -882,7 +907,7 @@ app.get('/predict', (req, res) => {
 
 // Endpoint lấy lịch sử
 app.get('/history', (req, res) => {
-    const history = predictor.history.map(h => ({
+    const history = predictor.history.slice(-30).map(h => ({
         Phien: h.Phien,
         Xuc_xac1: h.Xuc_xac_1,
         Xuc_xac2: h.Xuc_xac_2,
@@ -891,8 +916,17 @@ app.get('/history', (req, res) => {
         Ketqua: h.Ket_qua
     }));
     res.json({
-        total: history.length,
-        history: history.slice(-20) // 20 phiên gần nhất
+        total: predictor.history.length,
+        history: history
+    });
+});
+
+// Endpoint lấy tất cả dự đoán đã lưu
+app.get('/all-predictions', (req, res) => {
+    const predictions = predictor.predHistory || [];
+    res.json({
+        total: predictions.length,
+        predictions: predictions.slice(-50)
     });
 });
 
@@ -904,9 +938,10 @@ console.log(`📡 API: ${CONFIG.API_URL}`);
 console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
 console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
 console.log(`📊 Endpoints:`);
-console.log(`   /        - Health check`);
-console.log(`   /predict - Dự đoán mới nhất`);
-console.log(`   /history - Lịch sử 20 phiên`);
+console.log(`   /              - Health check`);
+console.log(`   /predict       - Dự đoán mới nhất`);
+console.log(`   /history       - Lịch sử 30 phiên`);
+console.log(`   /all-predictions - Tất cả dự đoán đã lưu`);
 console.log('─────────────────────────────');
 
 // Chạy polling
@@ -916,6 +951,7 @@ setInterval(fetchAndPredict, CONFIG.POLL_INTERVAL);
 // Start server
 app.listen(PORT, () => {
     console.log(`✅ Web server running on port ${PORT}`);
+    console.log(`💓 Keep-alive will ping every 5 minutes`);
 });
 
 process.stdin.resume();

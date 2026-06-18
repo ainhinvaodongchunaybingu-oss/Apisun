@@ -8,7 +8,7 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemo
 
 # ================== CẤU HÌNH BOT & ADMIN ==================
 TOKEN = '8739190418:AAENc1qHr9EFBUCK_9HjDzyRhyojaoXa83I'
-OWNER_ID = 8605217948 , 7118616226
+OWNER_IDS = [8605217948, 7118616226]  # DANH SÁCH ADMIN - ĐÃ FIX
 bot = telebot.TeleBot(TOKEN)
 
 # ================== THÔNG TIN BANK VÀ GÓI KEY ==================
@@ -22,7 +22,7 @@ BANG_GIA = {
     "vv": {"name": "Vĩnh Viễn", "price": 600000, "days": 36500}
 }
 
-# ================== URL API CÁC GAME (CẬP NHẬT KHI CLOUDFLARE ĐỔI URL) ==================
+# ================== URL API CÁC GAME ==================
 API_68GB_MD5   = "https://chuck-ent-nicole-leadership.trycloudflare.com/api/68/md5"
 API_68GB_HU    = "https://financing-patio-beast-invention.trycloudflare.com/api/68/thuong"
 API_SICBO_SUN  = "https://blowing-proved-pick-importantly.trycloudflare.com/api/sunsicbo"
@@ -54,6 +54,10 @@ def load_json(filename):
             return {}
     return {}
 
+def is_admin(user_id):
+    """Kiểm tra user có phải admin không"""
+    return user_id in OWNER_IDS
+
 # ================== KHỞI TẠO BỘ NHỚ TẠM CỦA BOT ==================
 _active_keys_raw   = load_json("keys.json")
 _authenticated_raw = load_json("auth_users.json")
@@ -80,7 +84,10 @@ if isinstance(_authenticated_raw, dict):
             try: authenticated_users[int(uid_str)] = dt
             except: pass
 
-authenticated_users[OWNER_ID] = datetime.now() + timedelta(days=365*100)
+# FIX: Thêm tất cả admin vào danh sách authenticated
+for admin_id in OWNER_IDS:
+    authenticated_users[admin_id] = datetime.now() + timedelta(days=365*100)
+
 kicked_users  = set(_kicked_raw) if isinstance(_kicked_raw, list) else set()
 running_users = set()
 user_data     = {}
@@ -149,6 +156,7 @@ def save_new_order(user_id, key_type, order_code):
 save_keys_file()
 save_auth_users_file()
 save_kicked_file()
+
 # =========================================================================
 # PHẦN 2: CÁC THUẬT TOÁN PHÂN TÍCH AI & MD5
 # =========================================================================
@@ -268,6 +276,7 @@ def analyze_md5(md5_str):
         return "Tài", random.randint(77, 95)
     else:
         return random.choice(["Tài","Xỉu"]), random.randint(65, 80)
+
 # =========================================================================
 # PHẦN 3: BAN PHÍM MENU & CÁC VÒNG LẶP ĐỌC API GAME RUNNING
 # =========================================================================
@@ -345,7 +354,7 @@ def auto_loop_68gb_md5(uid, chat_id):
     error_count = 0; running_users.add(uid)
     while uid in running_users:
         try:
-            if uid != OWNER_ID and not check_key(uid):
+            if not is_admin(uid) and not check_key(uid):
                 bot.send_message(chat_id, "❌ Key hết hạn!"); running_users.discard(uid); break
             try:
                 r = requests.get(API_68GB_MD5, timeout=5)
@@ -386,7 +395,7 @@ def auto_loop_sunwin_tx(uid, chat_id):
     error_count = 0; running_users.add(uid)
     while uid in running_users:
         try:
-            if uid != OWNER_ID and not check_key(uid):
+            if not is_admin(uid) and not check_key(uid):
                 bot.send_message(chat_id, "❌ Key hết hạn!"); running_users.discard(uid); break
             try:
                 r = requests.get("http://103.249.116.192:1001/api/ditmemaysun", timeout=10)
@@ -419,14 +428,12 @@ def auto_loop_sunwin_tx(uid, chat_id):
 # =================== HELPER: parse sicbo/tx API response ===================
 def _parse_tx_response(js):
     """Trả về (phien, xx1, xx2, xx3) từ nhiều cấu trúc JSON khác nhau."""
-    # Cấu trúc 789 TX: {"current": {"phien":..., "xuc_xac":[5,6,3], ...}}
     if "current" in js:
         d = js["current"]
         phien = int(d.get("phien") or 0)
         xx = d.get("xuc_xac", [0, 0, 0])
         return phien, int(xx[0]), int(xx[1]), int(xx[2])
     data_api = js.get("data", js)
-    # Xử lý phien có thể có dạng "#2594564" → bỏ ký tự #
     raw_phien = str(data_api.get("Phien") or data_api.get("phien") or "0").replace("#","").strip()
     try: phien = int(raw_phien)
     except: phien = 0
@@ -440,7 +447,7 @@ def _make_tx_loop(uid, chat_id, api_url, game_label, user_key_prefix, is_sicbo=F
     error_count = 0; running_users.add(uid)
     while uid in running_users:
         try:
-            if uid != OWNER_ID and not check_key(uid):
+            if not is_admin(uid) and not check_key(uid):
                 bot.send_message(chat_id, "❌ Key hết hạn!"); running_users.discard(uid); break
             try:
                 r = requests.get(api_url, timeout=10)
@@ -460,7 +467,6 @@ def _make_tx_loop(uid, chat_id, api_url, game_label, user_key_prefix, is_sicbo=F
             d[lp_key] = phien; d[ls_key].append(kq); d[tong_key].append(tong)
             du_tx, do_tin, loai_cau = du_doan_main(d[ls_key], d["dem_sai"], set(), xx, [], d)
 
-            # Chỉ tính điểm gợi ý + bộ lót cho Sicbo
             if is_sicbo:
                 if du_tx == "Tài":
                     candidates = range(11, 18)
@@ -503,7 +509,7 @@ def auto_loop_hitclub_md5(uid, chat_id):
     error_count = 0; running_users.add(uid)
     while uid in running_users:
         try:
-            if uid != OWNER_ID and not check_key(uid):
+            if not is_admin(uid) and not check_key(uid):
                 bot.send_message(chat_id, "❌ Key hết hạn!"); running_users.discard(uid); break
             try:
                 r = requests.get(API_HIT_MD5, timeout=5)
@@ -563,7 +569,7 @@ def auto_loop_lc79_md5(uid, chat_id):
     error_count = 0; running_users.add(uid)
     while uid in running_users:
         try:
-            if uid != OWNER_ID and not check_key(uid):
+            if not is_admin(uid) and not check_key(uid):
                 bot.send_message(chat_id, "❌ Key hết hạn!"); running_users.discard(uid); break
             try:
                 r = requests.get(API_LC79_MD5, timeout=5)
@@ -600,6 +606,7 @@ def auto_loop_lc79_md5(uid, chat_id):
         except: error_count += 1
         if error_count >= 10: running_users.discard(uid); break
         time.sleep(3)
+
 # =========================================================================
 # PHẦN 4: ĐIỀU HƯỚNG TIN NHẮN (HANDLERS) & KHỞI CHẠY POLLING
 # =========================================================================
@@ -667,31 +674,48 @@ def callback_buy_package(call):
         f"📝 Nội dung CK: <code>{memo}</code>\n"
         f"{LINE}\n"
     )
-    try:
-        bot.send_message(OWNER_ID, admin_msg, parse_mode="HTML", reply_markup=admin_markup)
+    
+    # FIX: Gửi tin nhắn cho tất cả admin
+    sent_to_admin = False
+    for admin_id in OWNER_IDS:
+        try:
+            bot.send_message(admin_id, admin_msg, parse_mode="HTML", reply_markup=admin_markup)
+            sent_to_admin = True
+        except Exception as e:
+            print(f"Lỗi gửi tin cho admin {admin_id}: {e}")
+    
+    if sent_to_admin:
         bot.answer_callback_query(call.id, text="Hóa đơn đã được khởi tạo thành công!")
-    except Exception as e:
-        print(f"Lỗi gửi thông báo cho Admin: {e}")
+    else:
         bot.answer_callback_query(call.id, text="Tạm thời không thể báo Admin, nhưng đơn hàng đã được ghi nhận trên hệ thống!", show_alert=True)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("approve_") or call.data.startswith("reject_"))
 def callback_admin_action(call):
-    if call.from_user.id != OWNER_ID:
-        bot.answer_callback_query(call.id, "❌ Bạn không có quyền duyệt!", show_alert=True); return
+    # FIX: Kiểm tra admin trong danh sách
+    if call.from_user.id not in OWNER_IDS:
+        bot.answer_callback_query(call.id, "❌ Bạn không có quyền duyệt!", show_alert=True)
+        return
         
     parts = call.data.split("_", 1); action, order_code = parts[0], parts[1]
     orders = load_orders()
-    if order_code not in orders: bot.answer_callback_query(call.id, "❌ Đơn không tồn tại!"); return
+    if order_code not in orders:
+        bot.answer_callback_query(call.id, "❌ Đơn không tồn tại!")
+        return
     order = orders[order_code]
-    if order["status"] != "pending": bot.answer_callback_query(call.id, "⚠️ Đơn này đã xử lý trước đó!"); return
+    if order["status"] != "pending":
+        bot.answer_callback_query(call.id, "⚠️ Đơn này đã xử lý trước đó!")
+        return
         
     user_id = order["user_id"]; pkg_id = order["key_type"]; pkg = BANG_GIA.get(pkg_id)
     
     if action == "approve":
-        orders[order_code]["status"] = "completed"; save_orders(orders)
+        orders[order_code]["status"] = "completed"
+        save_orders(orders)
         new_key = generate_unique_key()
         expire = datetime.now() + timedelta(days=pkg["days"])
-        keys = load_keys(); keys[new_key] = expire.isoformat(); save_keys(keys)
+        keys = load_keys()
+        keys[new_key] = expire.isoformat()
+        save_keys(keys)
         
         success_text = (
             f"🎉 <b>NẠP TIỀN THÀNH CÔNG</b>\n"
@@ -705,13 +729,27 @@ def callback_admin_action(call):
         try: bot.send_message(user_id, success_text, parse_mode="HTML")
         except: pass
             
-        bot.edit_message_text(chat_id=OWNER_ID, message_id=call.message.message_id, text=call.message.text + f"\n\n🟢ĐÃ DUYỆT: Hệ thống đã gửi key cho người dùng.", reply_markup=None)
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text=call.message.text + f"\n\n🟢ĐÃ DUYỆT: Hệ thống đã gửi key cho người dùng.",
+            reply_markup=None
+        )
         bot.answer_callback_query(call.id, "✅ Duyệt thành công!")
+        
     elif action == "reject":
-        orders[order_code]["status"] = "rejected"; save_orders(orders)
-        try: bot.send_message(user_id, f"❌ Đơn nạp <code>#{order_code}</code> đã bị từ chối phê duyệt.", parse_mode="HTML")
+        orders[order_code]["status"] = "rejected"
+        save_orders(orders)
+        try:
+            bot.send_message(user_id, f"❌ Đơn nạp <code>#{order_code}</code> đã bị từ chối phê duyệt.", parse_mode="HTML")
         except: pass
-        bot.edit_message_text(chat_id=OWNER_ID, message_id=call.message.message_id, text=call.message.text + "\n\n🔴 <b>ĐÃ HỦY: Đơn nạp bị từ chối.</b>", reply_markup=None)
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text=call.message.text + "\n\n🔴 <b>ĐÃ HỦY: Đơn nạp bị từ chối.</b>",
+            reply_markup=None
+        )
+        bot.answer_callback_query(call.id, "✅ Đã hủy đơn hàng!")
 
 @bot.message_handler(func=lambda msg: msg.text == "🔑 Nhập Key")
 def ui_nhap_key(msg):
@@ -722,19 +760,29 @@ def ui_nhap_key(msg):
 def process_activation_key(msg):
     uid = msg.from_user.id; key = msg.text.strip(); user_state.pop(uid, None)
     keys = load_keys()
-    if key not in keys: bot.reply_to(msg, "❌ Mã Key không hợp lệ!"); return
+    if key not in keys:
+        bot.reply_to(msg, "❌ Mã Key không hợp lệ!")
+        return
     try: expire_dt = datetime.fromisoformat(keys[key])
     except: expire_dt = datetime.strptime(keys[key], "%Y-%m-%d %H:%M:%S")
-    if expire_dt <= datetime.now(): bot.reply_to(msg, "❌ Mã Key này đã hết hạn!"); return
+    if expire_dt <= datetime.now():
+        bot.reply_to(msg, "❌ Mã Key này đã hết hạn!")
+        return
     
-    authenticated_users[uid] = expire_dt; save_auth_users_file()
-    del keys[key]; save_keys(keys)
+    authenticated_users[uid] = expire_dt
+    save_auth_users_file()
+    del keys[key]
+    save_keys(keys)
     bot.reply_to(msg, f"✅ Kích hoạt thành công!\n⏰ Hạn dùng: {expire_dt.strftime('%H:%M %d/%m/%Y')}", reply_markup=kb_da_co_key())
 
 @bot.message_handler(func=lambda msg: msg.text in ["🎮 Chọn Game", "⬅️ Quay Lại"])
 def ui_chuyen_menu(msg):
-    if msg.text == "⬅️ Quay Lại": command_start(msg); return
-    if not check_key(msg.from_user.id): bot.reply_to(msg, "❌ Bạn chưa kích hoạt key!"); return
+    if msg.text == "⬅️ Quay Lại":
+        command_start(msg)
+        return
+    if not check_key(msg.from_user.id):
+        bot.reply_to(msg, "❌ Bạn chưa kích hoạt key!")
+        return
     bot.reply_to(msg, "🎮 Danh sách các trò chơi hệ thống hỗ trợ phân tích:", reply_markup=kb_chon_game())
 
 @bot.message_handler(func=lambda msg: msg.text == "🎲 68GB")
@@ -750,16 +798,20 @@ def menu_sunwin(msg):
 @bot.message_handler(func=lambda msg: msg.text == "🎲 68GB MD5")
 def start_68gb_md5(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Robot đang chạy game khác. Hãy bấm Dừng trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Robot đang chạy game khác. Hãy bấm Dừng trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích dữ liệu 68GB MD5...")
     threading.Thread(target=auto_loop_68gb_md5, args=(uid, msg.chat.id), daemon=True).start()
 
 @bot.message_handler(func=lambda msg: msg.text == "🎲 TX Sunwin")
 def start_sunwin_tx(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích Sunwin Tài Xỉu...")
     threading.Thread(target=auto_loop_sunwin_tx, args=(uid, msg.chat.id), daemon=True).start()
 
@@ -769,13 +821,16 @@ def stop_all_games(msg):
     if uid in running_users:
         running_users.discard(uid)
         bot.reply_to(msg, "⏹ Đã dừng tiến trình phân tích game thành công.")
-    else: bot.reply_to(msg, "ℹ️ Hiện không có tiến trình nào đang chạy.")
+    else:
+        bot.reply_to(msg, "ℹ️ Hiện không có tiến trình nào đang chạy.")
 
 @bot.message_handler(func=lambda msg: msg.text == "🔍 Kiểm Tra Key")
 def check_key_status(msg):
     expiry = check_key(msg.from_user.id)
-    if expiry: bot.reply_to(msg, f"✅ Hạn sử dụng tài khoản: {expiry.strftime('%H:%M %d/%m/%Y')}")
-    else: bot.reply_to(msg, "❌ Tài khoản hết hạn bản quyền.", reply_markup=kb_chua_co_key())
+    if expiry:
+        bot.reply_to(msg, f"✅ Hạn sử dụng tài khoản: {expiry.strftime('%H:%M %d/%m/%Y')}")
+    else:
+        bot.reply_to(msg, "❌ Tài khoản hết hạn bản quyền.", reply_markup=kb_chua_co_key())
 
 @bot.message_handler(func=lambda msg: msg.text == "📞 Liên Hệ Admin")
 def show_contact(msg):
@@ -783,18 +838,30 @@ def show_contact(msg):
 
 @bot.message_handler(commands=['taokey'])
 def admin_generate_key_cmd(msg):
-    if msg.from_user.id != OWNER_ID: return
+    # FIX: Kiểm tra admin trong danh sách
+    if msg.from_user.id not in OWNER_IDS:
+        return
     try:
-        ds = msg.text.split()[1].strip(); unit = ds[-1]; amount = int(ds[:-1])
+        ds = msg.text.split()[1].strip()
+        unit = ds[-1]
+        amount = int(ds[:-1])
         now = datetime.now()
-        if unit == 'm': expire = now + timedelta(minutes=amount)
-        elif unit == 'h': expire = now + timedelta(hours=amount)
-        elif unit == 'd': expire = now + timedelta(days=amount)
-        else: bot.reply_to(msg, "Cú pháp sai đơn vị thời gian (m/h/d)"); return
+        if unit == 'm':
+            expire = now + timedelta(minutes=amount)
+        elif unit == 'h':
+            expire = now + timedelta(hours=amount)
+        elif unit == 'd':
+            expire = now + timedelta(days=amount)
+        else:
+            bot.reply_to(msg, "Cú pháp sai đơn vị thời gian (m/h/d)")
+            return
         key = generate_unique_key()
-        keys = load_keys(); keys[key] = expire.isoformat(); save_keys(keys)
+        keys = load_keys()
+        keys[key] = expire.isoformat()
+        save_keys(keys)
         bot.reply_to(msg, f"🔑 Cấp mã thành công:\n<code>{key}</code>\n⏰ Hạn: {expire.strftime('%H:%M %d/%m/%Y')}", parse_mode="HTML")
-    except: bot.reply_to(msg, "Cú pháp: /taokey 30m | 2h | 7d")
+    except:
+        bot.reply_to(msg, "Cú pháp: /taokey 30m | 2h | 7d")
 
 # =================== HANDLERS CÁC GAME ===================
 
@@ -817,8 +884,10 @@ def menu_lc79(msg):
 @bot.message_handler(func=lambda msg: msg.text == "🎰 Sicbo Sun")
 def start_sicbo_sun(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích Sicbo Sunwin...")
     threading.Thread(target=auto_loop_sicbo_sun, args=(uid, msg.chat.id), daemon=True).start()
 
@@ -826,24 +895,30 @@ def start_sicbo_sun(msg):
 @bot.message_handler(func=lambda msg: msg.text == "🔐 Hit MD5")
 def start_hitclub_md5(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích Hit Club MD5...")
     threading.Thread(target=auto_loop_hitclub_md5, args=(uid, msg.chat.id), daemon=True).start()
 
 @bot.message_handler(func=lambda msg: msg.text == "🏆 Hit Hũ")
 def start_hit_hu(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích Hit Hũ...")
     threading.Thread(target=auto_loop_hit_hu, args=(uid, msg.chat.id), daemon=True).start()
 
 @bot.message_handler(func=lambda msg: msg.text == "🎲 Sicbo Hit")
 def start_sicbo_hit(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích Sicbo Hit Club...")
     threading.Thread(target=auto_loop_sicbo_hit, args=(uid, msg.chat.id), daemon=True).start()
 
@@ -851,16 +926,20 @@ def start_sicbo_hit(msg):
 @bot.message_handler(func=lambda msg: msg.text == "🎯 789 TX")
 def start_789_tx(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích 789 Club TX...")
     threading.Thread(target=auto_loop_789_tx, args=(uid, msg.chat.id), daemon=True).start()
 
 @bot.message_handler(func=lambda msg: msg.text == "🎲 Sicbo 789")
 def start_sicbo_789(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích Sicbo 789 Club...")
     threading.Thread(target=auto_loop_sicbo_789, args=(uid, msg.chat.id), daemon=True).start()
 
@@ -868,8 +947,10 @@ def start_sicbo_789(msg):
 @bot.message_handler(func=lambda msg: msg.text == "🏆 68GB Hũ")
 def start_68gb_hu(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích 68GB Hũ...")
     threading.Thread(target=auto_loop_68gb_hu, args=(uid, msg.chat.id), daemon=True).start()
 
@@ -877,16 +958,20 @@ def start_68gb_hu(msg):
 @bot.message_handler(func=lambda msg: msg.text == "🏆 LC79 Hũ")
 def start_lc79_hu(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích LC79 Hũ...")
     threading.Thread(target=auto_loop_lc79_hu, args=(uid, msg.chat.id), daemon=True).start()
 
 @bot.message_handler(func=lambda msg: msg.text == "🔐 LC79 MD5")
 def start_lc79_md5(msg):
     uid = msg.from_user.id
-    if not check_key(uid): return
-    if uid in running_users: bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước."); return
+    if not is_admin(uid) and not check_key(uid): return
+    if uid in running_users:
+        bot.reply_to(msg, "⚠️ Hãy dừng trò chơi cũ trước.")
+        return
     bot.reply_to(msg, "🚀 Khởi động phân tích LC79 MD5...")
     threading.Thread(target=auto_loop_lc79_md5, args=(uid, msg.chat.id), daemon=True).start()
 
@@ -894,5 +979,5 @@ if __name__ == "__main__":
     print("=" * 40)
     print("  🤖 AI TOOL PRO - BOT ĐÃ KHỞI CHẠY KHỚP LỆNH HOÀN TOÀN")
     print("=" * 40)
+    print(f"👑 Admin IDs: {OWNER_IDS}")
     bot.infinity_polling(timeout=60, long_polling_timeout=30)
-ling_timeout=30

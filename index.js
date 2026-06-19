@@ -25,9 +25,8 @@ app.use((req, res, next) => {
 // CẤU HÌNH API NGUỒN
 // ============================================================
 const API_SOURCES = {
-    // Định dạng: "tên_game": { "loại_api": "url_api" }
     "sunwin": {
-        "tx": "http://103.249.116.192:1001/api/ditmemaysun" // API cũ được ánh xạ vào route /txsunwin
+        "tx": "http://103.249.116.192:1001/api/ditmemaysun"
     },
     "Ogkfan": {
         "txmd5": "https://guidance-discrete-dive-navigate.trycloudflare.com/api/txmd5/latest"
@@ -95,7 +94,6 @@ const API_SOURCES = {
         "tx": "https://conversation-selling-slowly-bride.trycloudflare.com/api/tx",
         "txmd5": "https://conversation-selling-slowly-bride.trycloudflare.com/api/txmd5"
     }
-    // Thêm các game khác tại đây nếu cần
 };
 
 // ============================================================
@@ -114,7 +112,7 @@ const CONFIG = {
     BASE_CONFIDENCE: 0.5,
     MODELS: ['markov', 'run_length', 'momentum', 'pattern'],
     CREATOR_ID: '@bucactaodi',
-    CONFIDENCE_THRESHOLD: 57 // Ngưỡng tin cậy để đảo ngược dự đoán
+    CONFIDENCE_THRESHOLD: 57
 };
 
 // ============================================================
@@ -2059,6 +2057,134 @@ async function fetchAndPredict() {
 }
 
 // ============================================================
+// HÀM GỌI API TỔNG QUÁT
+// ============================================================
+async function fetchAPI(url, timeout = 5000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json'
+            }
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        clearTimeout(timeoutId);
+        return null;
+    }
+}
+
+// ============================================================
+// HÀM CHUẨN HÓA DỮ LIỆU VÀ DỰ ĐOÁN
+// ============================================================
+function normalizeAndPredict(rawData, gameName, apiType, sourceUrl) {
+    if (!rawData) return null;
+
+    // Lấy dữ liệu từ raw
+    const phien = rawData.phien || rawData.Phien || rawData.id || null;
+    const x1 = rawData.xuc_xac_1 || rawData.Xuc_xac_1 || rawData.x1 || null;
+    const x2 = rawData.xuc_xac_2 || rawData.Xuc_xac_2 || rawData.x2 || null;
+    const x3 = rawData.xuc_xac_3 || rawData.Xuc_xac_3 || rawData.x3 || null;
+    let tong = rawData.tong || rawData.Tong || rawData.total || null;
+    let ketqua = rawData.ket_qua || rawData.Ket_qua || rawData.result || null;
+
+    if (x1 && x2 && x3 && tong === null) {
+        tong = parseInt(x1) + parseInt(x2) + parseInt(x3);
+    }
+
+    if (tong !== null && ketqua === null) {
+        ketqua = tong >= 11 ? "Tài" : "Xỉu";
+    }
+
+    if (ketqua) {
+        if (typeof ketqua === 'string') {
+            const lower = ketqua.toLowerCase();
+            if (lower.includes('tài') || lower === 't' || lower === 'tai') ketqua = "Tài";
+            else if (lower.includes('xỉu') || lower === 'x' || lower === 'xiu') ketqua = "Xỉu";
+            else if (ketqua === 'T') ketqua = "Tài";
+            else if (ketqua === 'X') ketqua = "Xỉu";
+        }
+    }
+
+    // Tạo history từ dữ liệu hiện tại để dự đoán
+    const history = [];
+    if (phien && x1 && x2 && x3 && tong !== null && ketqua) {
+        const round = {
+            Phien: phien,
+            Xuc_xac_1: parseInt(x1),
+            Xuc_xac_2: parseInt(x2),
+            Xuc_xac_3: parseInt(x3),
+            Tong: tong,
+            Ket_qua: ketqua
+        };
+        history.push(round);
+    }
+
+    // Dự đoán
+    let duDoan = null;
+    let confidence = 0;
+    let reason = "Chưa có dữ liệu để dự đoán";
+
+    if (history.length > 0) {
+        try {
+            // Tạo predictor tạm thời với history này
+            const tempPredictor = new PredictorService([]);
+            tempPredictor.history = history;
+            const predResult = tempPredictor.predict();
+            duDoan = predResult.prediction;
+            confidence = predResult.confidence;
+            reason = predResult.reason;
+        } catch (e) {
+            // Fallback: dự đoán theo tổng
+            if (tong !== null) {
+                duDoan = tong >= 11 ? "Tài" : "Xỉu";
+                confidence = 65;
+                reason = `Dự đoán theo tổng ${tong}`;
+            }
+        }
+    }
+
+    // Áp dụng đảo ngược nếu độ tin cậy dưới 57%
+    let finalDuDoan = duDoan;
+    let finalConfidence = confidence;
+    let reversed = false;
+
+    if (confidence < CONFIG.CONFIDENCE_THRESHOLD && duDoan) {
+        finalDuDoan = (duDoan === "Tài") ? "Xỉu" : "Tài";
+        finalConfidence = Math.round(100 - confidence);
+        reversed = true;
+        reason += ` | Đảo ngược do độ tin cậy ${confidence}% < ${CONFIG.CONFIDENCE_THRESHOLD}%`;
+    }
+
+    return {
+        game: gameName,
+        api_type: apiType,
+        source_url: sourceUrl,
+        Phien: phien,
+        Xuc_xac1: parseInt(x1) || 0,
+        Xuc_xac2: parseInt(x2) || 0,
+        Xuc_xac3: parseInt(x3) || 0,
+        Tong: tong || 0,
+        Ketqua: ketqua || "Chưa có",
+        Du_doan: finalDuDoan || "Chưa đủ dữ liệu",
+        cre: CONFIG.CREATOR_ID,
+        meta: {
+            timestamp: nowStr(),
+            reason: reason || "Không có lý do",
+            original_confidence: confidence,
+            confidence: finalConfidence,
+            reversed: reversed,
+            threshold: CONFIG.CONFIDENCE_THRESHOLD
+        }
+    };
+}
+
+// ============================================================
 // EXPRESS ROUTES
 // ============================================================
 
@@ -2092,6 +2218,9 @@ app.get('/predict', (req, res) => {
     }
 
     const exportObj = {
+        game: "sunwin",
+        api_type: "tx",
+        source_url: CONFIG.API_URL,
         Phien: latestRound.Phien,
         Xuc_xac1: latestRound.Xuc_xac_1,
         Xuc_xac2: latestRound.Xuc_xac_2,
@@ -2137,122 +2266,40 @@ app.get('/all-predictions', (req, res) => {
 });
 
 // ============================================================
-// TẠO ENDPOINT ĐỘNG CHO TỪNG GAME (TÍCH HỢP ĐA API)
+// TẠO ENDPOINT ĐỘNG CHO TỪNG GAME (CÓ DỰ ĐOÁN)
 // ============================================================
-async function handleGameRequest(req, res, gameName, apiType) {
-    const gameConfig = API_SOURCES[gameName];
-    if (!gameConfig) {
-        return res.status(404).json({
-            error: `Không tìm thấy game "${gameName}"`,
-            available_games: Object.keys(API_SOURCES)
-        });
-    }
-
-    const apiUrl = gameConfig[apiType];
-    if (!apiUrl) {
-        return res.status(404).json({
-            error: `Game "${gameName}" không hỗ trợ loại API "${apiType}"`,
-            supported_types: Object.keys(gameConfig)
-        });
-    }
-
-    try {
-        const rawData = await fetchAPI(apiUrl);
-        if (!rawData) {
-            return res.status(503).json({
-                error: `Không thể lấy dữ liệu từ API của game "${gameName}" (${apiType})`,
-                api_url: apiUrl
-            });
-        }
-
-        const normalized = normalizeData(rawData, `${gameName}-${apiType}`);
-
-        return res.json({
-            game: gameName,
-            api_type: apiType,
-            source_url: apiUrl,
-            data: normalized,
-            fetched_at: nowStr()
-        });
-
-    } catch (error) {
-        return res.status(500).json({
-            error: `Lỗi khi xử lý dữ liệu từ game "${gameName}"`,
-            detail: error.message
-        });
-    }
-}
-
-// Hàm gọi API với timeout
-async function fetchAPI(url, timeout = 5000) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    try {
-        const response = await fetch(url, {
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'application/json'
-            }
-        });
-        clearTimeout(timeoutId);
-        if (!response.ok) return null;
-        return await response.json();
-    } catch (error) {
-        clearTimeout(timeoutId);
-        return null;
-    }
-}
-
-// Hàm chuẩn hóa dữ liệu từ API
-function normalizeData(data, sourceType) {
-    if (!data) return null;
-
-    const phien = data.phien || data.Phien || data.id || null;
-    const x1 = data.xuc_xac_1 || data.Xuc_xac_1 || data.x1 || null;
-    const x2 = data.xuc_xac_2 || data.Xuc_xac_2 || data.x2 || null;
-    const x3 = data.xuc_xac_3 || data.Xuc_xac_3 || data.x3 || null;
-    let tong = data.tong || data.Tong || data.total || null;
-    let ketqua = data.ket_qua || data.Ket_qua || data.result || null;
-
-    if (x1 && x2 && x3 && tong === null) {
-        tong = x1 + x2 + x3;
-    }
-
-    if (tong !== null && ketqua === null) {
-        ketqua = tong >= 11 ? "Tài" : "Xỉu";
-    }
-
-    if (ketqua) {
-        if (typeof ketqua === 'string') {
-            const lower = ketqua.toLowerCase();
-            if (lower.includes('tài') || lower === 't' || lower === 'tai') ketqua = "Tài";
-            else if (lower.includes('xỉu') || lower === 'x' || lower === 'xiu') ketqua = "Xỉu";
-            else if (ketqua === 'T') ketqua = "Tài";
-            else if (ketqua === 'X') ketqua = "Xỉu";
-        }
-    }
-
-    return {
-        phien: phien,
-        xuc_xac_1: x1 ? parseInt(x1) : null,
-        xuc_xac_2: x2 ? parseInt(x2) : null,
-        xuc_xac_3: x3 ? parseInt(x3) : null,
-        tong: tong ? parseInt(tong) : null,
-        ket_qua: ketqua,
-        source: sourceType,
-        raw: data
-    };
-}
-
-// Tự động tạo route cho tất cả game và loại API
 for (const [gameName, config] of Object.entries(API_SOURCES)) {
     for (const [apiType, url] of Object.entries(config)) {
         const routePath = `/${apiType}${gameName}`;
         app.get(routePath, async (req, res) => {
-            await handleGameRequest(req, res, gameName, apiType);
+            try {
+                // Gọi API nguồn
+                const rawData = await fetchAPI(url);
+                if (!rawData) {
+                    return res.status(503).json({
+                        error: `Không thể lấy dữ liệu từ API của game "${gameName}" (${apiType})`,
+                        api_url: url
+                    });
+                }
+
+                // Chuẩn hóa và dự đoán
+                const result = normalizeAndPredict(rawData, gameName, apiType, url);
+                if (!result) {
+                    return res.status(500).json({
+                        error: `Không thể xử lý dữ liệu từ game "${gameName}"`,
+                        api_url: url
+                    });
+                }
+
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({
+                    error: `Lỗi khi xử lý dữ liệu từ game "${gameName}"`,
+                    detail: error.message
+                });
+            }
         });
-        console.log(`✅ Route created: ${routePath} -> ${url}`);
+        console.log(`✅ Route created: ${routePath} (with prediction)`);
     }
 }
 
@@ -2288,100 +2335,66 @@ app.get('/predict-all', async (req, res) => {
 
     try {
         const results = await Promise.allSettled(fetchPromises);
-        const normalizedDataList = [];
+        const predictions = [];
 
         results.forEach((result, index) => {
             if (result.status === 'fulfilled' && result.value) {
                 const task = fetchTasks[index];
-                const normalized = normalizeData(result.value, `${task.game}-${task.type}`);
-                if (normalized && normalized.ket_qua) {
-                    normalizedDataList.push(normalized);
+                const pred = normalizeAndPredict(result.value, task.game, task.type, task.url);
+                if (pred) {
+                    predictions.push(pred);
                 }
             }
         });
 
-        // Dự đoán từ dữ liệu đã thu thập
-        const predictionResult = predictFromData(normalizedDataList);
+        // Tổng hợp dự đoán
+        let taiCount = 0, xiuCount = 0;
+        const details = [];
+        predictions.forEach(p => {
+            if (p.Du_doan === "Tài") taiCount++;
+            else if (p.Du_doan === "Xỉu") xiuCount++;
+            details.push(`${p.game}-${p.api_type}: ${p.Du_doan} (${p.meta.confidence}%)`);
+        });
 
-        return res.json({
+        const total = predictions.length;
+        const taiRatio = taiCount / total;
+        const xiuRatio = xiuCount / total;
+        const confidence = Math.round(Math.max(taiRatio, xiuRatio) * 100);
+
+        let finalPred = taiRatio >= xiuRatio ? "Tài" : "Xỉu";
+        let reversed = false;
+        let finalConf = confidence;
+
+        if (confidence < CONFIG.CONFIDENCE_THRESHOLD) {
+            finalPred = (finalPred === "Tài") ? "Xỉu" : "Tài";
+            finalConf = 100 - confidence;
+            reversed = true;
+        }
+
+        res.json({
             status: 'success',
             timestamp: nowStr(),
-            prediction: predictionResult,
-            raw_data: normalizedDataList
+            summary: {
+                total_sources: total,
+                tai_count: taiCount,
+                xiu_count: xiuCount,
+                prediction: finalPred,
+                confidence: finalConf,
+                reversed: reversed,
+                threshold: CONFIG.CONFIDENCE_THRESHOLD,
+                details: details
+            },
+            predictions: predictions
         });
 
     } catch (error) {
-        return res.status(500).json({
+        res.status(500).json({
             status: 'error',
             message: 'Lỗi khi xử lý dự đoán',
             detail: error.message
         });
     }
 });
-
-// ============================================================
-// HÀM DỰ ĐOÁN TỪ DỮ LIỆU ĐA NGUỒN
-// ============================================================
-function predictFromData(normalizedDataList) {
-    const validData = normalizedDataList.filter(d => d && d.ket_qua);
-    if (validData.length === 0) {
-        return {
-            prediction: "Không đủ dữ liệu",
-            confidence: 0,
-            reason: "Không có dữ liệu từ các API",
-            sources: []
-        };
-    }
-
-    let taiCount = 0, xiuCount = 0;
-    const details = [];
-
-    validData.forEach(d => {
-        const isTai = d.ket_qua === "Tài";
-        if (isTai) taiCount++;
-        else xiuCount++;
-
-        const tongInfo = d.tong ? ` (Tổng: ${d.tong})` : '';
-        details.push(`${d.source}: ${d.ket_qua}${tongInfo}`);
-    });
-
-    const total = validData.length;
-    const taiRatio = taiCount / total;
-    const xiuRatio = xiuCount / total;
-    const maxRatio = Math.max(taiRatio, xiuRatio);
-    const confidence = Math.round(maxRatio * 100);
-
-    let prediction = taiRatio >= xiuRatio ? "Tài" : "Xỉu";
-    let reason = `Tổng hợp từ ${total} nguồn: Tài=${taiCount}, Xỉu=${xiuCount}. `;
-
-    let finalPrediction = prediction;
-    let finalConfidence = confidence;
-    let reverseFlag = false;
-
-    if (confidence < CONFIG.CONFIDENCE_THRESHOLD) {
-        finalPrediction = (prediction === "Tài") ? "Xỉu" : "Tài";
-        finalConfidence = 100 - confidence;
-        reverseFlag = true;
-        reason += `Độ tin cậy ${confidence}% < ngưỡng ${CONFIG.CONFIDENCE_THRESHOLD}%, tự động đảo ngược thành ${finalPrediction} (độ tin cậy mới: ${finalConfidence}%). `;
-    } else {
-        reason += `Độ tin cậy ${confidence}% >= ngưỡng ${CONFIG.CONFIDENCE_THRESHOLD}%, giữ nguyên dự đoán. `;
-    }
-
-    reason += `Chi tiết: ${details.join('; ')}`;
-
-    return {
-        prediction: finalPrediction,
-        confidence: finalConfidence,
-        original_prediction: prediction,
-        original_confidence: confidence,
-        reversed: reverseFlag,
-        reason: reason,
-        sources: validData.map(d => d.source),
-        total_sources: total,
-        tai_count: taiCount,
-        xiu_count: xiuCount
-    };
-}
 
 // ============================================================
 // START

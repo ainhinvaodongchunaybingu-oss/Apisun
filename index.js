@@ -2206,16 +2206,7 @@ app.get('/predict', (req, res) => {
         });
     }
 
-    // Áp dụng logic đảo ngược nếu độ tin cậy dưới 57%
-    let finalPrediction = latestPrediction.prediction || null;
-    let finalConfidence = latestPrediction.confidence || 0;
-    let reversed = false;
-
-    if (finalConfidence < CONFIG.CONFIDENCE_THRESHOLD && finalPrediction) {
-        finalPrediction = (finalPrediction === 'Tài') ? 'Xỉu' : 'Tài';
-        finalConfidence = 100 - finalConfidence;
-        reversed = true;
-    }
+    
 
     const exportObj = {
         game: "sunwin",

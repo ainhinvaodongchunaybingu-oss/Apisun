@@ -1,13 +1,15 @@
 // ============================================================
-// api_predict_render.js - Dự đoán Tài/Xỉu từ API
-// Dùng cho Render.com - CHỈ DỰ ĐOÁN 1 LẦN/PHIÊN
+// api_predict_render.js - NÂNG CẤP ĐA API & TỰ ĐỘNG ĐẢO NGƯỢC
+// Dùng cho Render.com - Tích hợp nhiều nguồn dữ liệu
 // ============================================================
 
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// ============================================================
 // CORS - CHO PHÉP TẤT CẢ DOMAIN KẾT NỐI
+// ============================================================
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -20,7 +22,84 @@ app.use((req, res, next) => {
 });
 
 // ============================================================
-// CẤU HÌNH
+// CẤU HÌNH API NGUỒN
+// ============================================================
+const API_SOURCES = {
+    // Định dạng: "tên_game": { "loại_api": "url_api" }
+    "sunwin": {
+        "tx": "http://103.249.116.192:1001/api/ditmemaysun" // API cũ được ánh xạ vào route /txsunwin
+    },
+    "Ogkfan": {
+        "txmd5": "https://guidance-discrete-dive-navigate.trycloudflare.com/api/txmd5/latest"
+    },
+    "Xocdia88": {
+        "tx": "https://pollution-seconds-sail-strikes.trycloudflare.com/api/taixiu"
+    },
+    "Hitclub": {
+        "tx": "https://subdivision-term-came-attempting.trycloudflare.com/api/tx",
+        "txmd5": "https://subdivision-term-came-attempting.trycloudflare.com/api/txmd5"
+    },
+    "Lc79": {
+        "tx": "https://thread-broke-artwork-compound.trycloudflare.com/api/tx",
+        "txmd5": "https://thread-broke-artwork-compound.trycloudflare.com/api/txmd5"
+    },
+    "Betvip": {
+        "tx": "https://stored-could-elder-mini.trycloudflare.com/api/tx",
+        "txmd5": "https://stored-could-elder-mini.trycloudflare.com/api/txmd5"
+    },
+    "789club": {
+        "tx": "https://packet-veterinary-organ-ministers.trycloudflare.com/api/tx",
+        "sicbo": "https://leslie-richardson-rrp-virtue.trycloudflare.com/sicbo/789club"
+    },
+    "B52": {
+        "tx": "https://years-expiration-autos-concert.trycloudflare.com/taixiu",
+        "txmd5": "https://years-expiration-autos-concert.trycloudflare.com/txmd5",
+        "sicbo": "https://leslie-richardson-rrp-virtue.trycloudflare.com/sicbo/b52"
+    },
+    "Iwin": {
+        "tx": "https://seek-vessels-peripherals-song.trycloudflare.com/api/tx",
+        "txmd5": "https://seek-vessels-peripherals-song.trycloudflare.com/api/txmd5"
+    },
+    "Max789": {
+        "tx": "https://expected-paying-pins-childhood.trycloudflare.com/api/tx",
+        "txmd5": "https://expected-paying-pins-childhood.trycloudflare.com/api/txmd5"
+    },
+    "Son789": {
+        "tx": "https://howto-out-excluding-tan.trycloudflare.com/api/tx",
+        "txmd5": "https://howto-out-excluding-tan.trycloudflare.com/api/txmd5"
+    },
+    "Luck8": {
+        "txmd5": "https://drawn-legislation-applicant-roberts.trycloudflare.com/api/txmd5",
+        "sicbo40s": "https://drawn-legislation-applicant-roberts.trycloudflare.com/api/sicbo40"
+    },
+    "Sumvin": {
+        "txmd5": "https://stories-meetings-injection-headlines.trycloudflare.com/api/md5"
+    },
+    "68gb": {
+        "tx": "https://financing-patio-beast-invention.trycloudflare.com/api/68/thuong",
+        "txmd5": "https://chuck-ent-nicole-leadership.trycloudflare.com/api/68/md5"
+    },
+    "Sun789": {
+        "tx": "https://speeds-built-attendance-dedicated.trycloudflare.com/api/tx",
+        "txmd5": "https://speeds-built-attendance-dedicated.trycloudflare.com/api/txmd5"
+    },
+    "Sunvip": {
+        "tx": "https://leader-analysis-wool-inspector.trycloudflare.com/api/tx",
+        "txmd5": "https://leader-analysis-wool-inspector.trycloudflare.com/api/txmd5"
+    },
+    "Hot789": {
+        "tx": "https://improve-museum-der-levy.trycloudflare.com/api/tx",
+        "txmd5": "https://improve-museum-der-levy.trycloudflare.com/api/txmd5"
+    },
+    "Ta28": {
+        "tx": "https://conversation-selling-slowly-bride.trycloudflare.com/api/tx",
+        "txmd5": "https://conversation-selling-slowly-bride.trycloudflare.com/api/txmd5"
+    }
+    // Thêm các game khác tại đây nếu cần
+};
+
+// ============================================================
+// CẤU HÌNH DỰ ĐOÁN
 // ============================================================
 const CONFIG = {
     API_URL: 'http://103.249.116.192:1001/api/ditmemaysun',
@@ -34,7 +113,8 @@ const CONFIG = {
     RUN_WINDOW_LONG: 20,
     BASE_CONFIDENCE: 0.5,
     MODELS: ['markov', 'run_length', 'momentum', 'pattern'],
-    CREATOR_ID: '@bucactaodi'
+    CREATOR_ID: '@bucactaodi',
+    CONFIDENCE_THRESHOLD: 57 // Ngưỡng tin cậy để đảo ngược dự đoán
 };
 
 // ============================================================
@@ -2000,6 +2080,17 @@ app.get('/predict', (req, res) => {
         });
     }
 
+    // Áp dụng logic đảo ngược nếu độ tin cậy dưới 57%
+    let finalPrediction = latestPrediction.prediction || null;
+    let finalConfidence = latestPrediction.confidence || 0;
+    let reversed = false;
+
+    if (finalConfidence < CONFIG.CONFIDENCE_THRESHOLD && finalPrediction) {
+        finalPrediction = (finalPrediction === 'Tài') ? 'Xỉu' : 'Tài';
+        finalConfidence = 100 - finalConfidence;
+        reversed = true;
+    }
+
     const exportObj = {
         Phien: latestRound.Phien,
         Xuc_xac1: latestRound.Xuc_xac_1,
@@ -2007,12 +2098,15 @@ app.get('/predict', (req, res) => {
         Xuc_xac3: latestRound.Xuc_xac_3,
         Tong: latestRound.Tong,
         Ketqua: latestRound.Ket_qua || 'Chưa có',
-        Du_doan: latestPrediction.prediction || null,
+        Du_doan: finalPrediction,
         cre: CONFIG.CREATOR_ID,
         meta: {
             timestamp: new Date().toISOString(),
             reason: latestPrediction.reason || 'Không có lý do',
-            confidence: latestPrediction.confidence || 0
+            original_confidence: latestPrediction.confidence || 0,
+            confidence: finalConfidence,
+            reversed: reversed,
+            threshold: CONFIG.CONFIDENCE_THRESHOLD
         }
     };
 
@@ -2043,6 +2137,253 @@ app.get('/all-predictions', (req, res) => {
 });
 
 // ============================================================
+// TẠO ENDPOINT ĐỘNG CHO TỪNG GAME (TÍCH HỢP ĐA API)
+// ============================================================
+async function handleGameRequest(req, res, gameName, apiType) {
+    const gameConfig = API_SOURCES[gameName];
+    if (!gameConfig) {
+        return res.status(404).json({
+            error: `Không tìm thấy game "${gameName}"`,
+            available_games: Object.keys(API_SOURCES)
+        });
+    }
+
+    const apiUrl = gameConfig[apiType];
+    if (!apiUrl) {
+        return res.status(404).json({
+            error: `Game "${gameName}" không hỗ trợ loại API "${apiType}"`,
+            supported_types: Object.keys(gameConfig)
+        });
+    }
+
+    try {
+        const rawData = await fetchAPI(apiUrl);
+        if (!rawData) {
+            return res.status(503).json({
+                error: `Không thể lấy dữ liệu từ API của game "${gameName}" (${apiType})`,
+                api_url: apiUrl
+            });
+        }
+
+        const normalized = normalizeData(rawData, `${gameName}-${apiType}`);
+
+        return res.json({
+            game: gameName,
+            api_type: apiType,
+            source_url: apiUrl,
+            data: normalized,
+            fetched_at: nowStr()
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            error: `Lỗi khi xử lý dữ liệu từ game "${gameName}"`,
+            detail: error.message
+        });
+    }
+}
+
+// Hàm gọi API với timeout
+async function fetchAPI(url, timeout = 5000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json'
+            }
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        clearTimeout(timeoutId);
+        return null;
+    }
+}
+
+// Hàm chuẩn hóa dữ liệu từ API
+function normalizeData(data, sourceType) {
+    if (!data) return null;
+
+    const phien = data.phien || data.Phien || data.id || null;
+    const x1 = data.xuc_xac_1 || data.Xuc_xac_1 || data.x1 || null;
+    const x2 = data.xuc_xac_2 || data.Xuc_xac_2 || data.x2 || null;
+    const x3 = data.xuc_xac_3 || data.Xuc_xac_3 || data.x3 || null;
+    let tong = data.tong || data.Tong || data.total || null;
+    let ketqua = data.ket_qua || data.Ket_qua || data.result || null;
+
+    if (x1 && x2 && x3 && tong === null) {
+        tong = x1 + x2 + x3;
+    }
+
+    if (tong !== null && ketqua === null) {
+        ketqua = tong >= 11 ? "Tài" : "Xỉu";
+    }
+
+    if (ketqua) {
+        if (typeof ketqua === 'string') {
+            const lower = ketqua.toLowerCase();
+            if (lower.includes('tài') || lower === 't' || lower === 'tai') ketqua = "Tài";
+            else if (lower.includes('xỉu') || lower === 'x' || lower === 'xiu') ketqua = "Xỉu";
+            else if (ketqua === 'T') ketqua = "Tài";
+            else if (ketqua === 'X') ketqua = "Xỉu";
+        }
+    }
+
+    return {
+        phien: phien,
+        xuc_xac_1: x1 ? parseInt(x1) : null,
+        xuc_xac_2: x2 ? parseInt(x2) : null,
+        xuc_xac_3: x3 ? parseInt(x3) : null,
+        tong: tong ? parseInt(tong) : null,
+        ket_qua: ketqua,
+        source: sourceType,
+        raw: data
+    };
+}
+
+// Tự động tạo route cho tất cả game và loại API
+for (const [gameName, config] of Object.entries(API_SOURCES)) {
+    for (const [apiType, url] of Object.entries(config)) {
+        const routePath = `/${apiType}${gameName}`;
+        app.get(routePath, async (req, res) => {
+            await handleGameRequest(req, res, gameName, apiType);
+        });
+        console.log(`✅ Route created: ${routePath} -> ${url}`);
+    }
+}
+
+// ============================================================
+// ROUTE DỰ ĐOÁN TỔNG HỢP - /predict-all
+// ============================================================
+app.get('/predict-all', async (req, res) => {
+    const gameFilter = req.query.games ? req.query.games.split(',') : Object.keys(API_SOURCES);
+    const typeFilter = req.query.types ? req.query.types.split(',') : ['tx', 'txmd5'];
+
+    const fetchPromises = [];
+    const fetchTasks = [];
+
+    for (const gameName of gameFilter) {
+        const config = API_SOURCES[gameName];
+        if (!config) continue;
+        for (const apiType of typeFilter) {
+            const url = config[apiType];
+            if (url) {
+                fetchPromises.push(fetchAPI(url));
+                fetchTasks.push({ game: gameName, type: apiType, url: url });
+            }
+        }
+    }
+
+    if (fetchPromises.length === 0) {
+        return res.json({
+            status: 'error',
+            message: 'Không có API nào được chọn để dự đoán',
+            available_games: Object.keys(API_SOURCES)
+        });
+    }
+
+    try {
+        const results = await Promise.allSettled(fetchPromises);
+        const normalizedDataList = [];
+
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value) {
+                const task = fetchTasks[index];
+                const normalized = normalizeData(result.value, `${task.game}-${task.type}`);
+                if (normalized && normalized.ket_qua) {
+                    normalizedDataList.push(normalized);
+                }
+            }
+        });
+
+        // Dự đoán từ dữ liệu đã thu thập
+        const predictionResult = predictFromData(normalizedDataList);
+
+        return res.json({
+            status: 'success',
+            timestamp: nowStr(),
+            prediction: predictionResult,
+            raw_data: normalizedDataList
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            status: 'error',
+            message: 'Lỗi khi xử lý dự đoán',
+            detail: error.message
+        });
+    }
+});
+
+// ============================================================
+// HÀM DỰ ĐOÁN TỪ DỮ LIỆU ĐA NGUỒN
+// ============================================================
+function predictFromData(normalizedDataList) {
+    const validData = normalizedDataList.filter(d => d && d.ket_qua);
+    if (validData.length === 0) {
+        return {
+            prediction: "Không đủ dữ liệu",
+            confidence: 0,
+            reason: "Không có dữ liệu từ các API",
+            sources: []
+        };
+    }
+
+    let taiCount = 0, xiuCount = 0;
+    const details = [];
+
+    validData.forEach(d => {
+        const isTai = d.ket_qua === "Tài";
+        if (isTai) taiCount++;
+        else xiuCount++;
+
+        const tongInfo = d.tong ? ` (Tổng: ${d.tong})` : '';
+        details.push(`${d.source}: ${d.ket_qua}${tongInfo}`);
+    });
+
+    const total = validData.length;
+    const taiRatio = taiCount / total;
+    const xiuRatio = xiuCount / total;
+    const maxRatio = Math.max(taiRatio, xiuRatio);
+    const confidence = Math.round(maxRatio * 100);
+
+    let prediction = taiRatio >= xiuRatio ? "Tài" : "Xỉu";
+    let reason = `Tổng hợp từ ${total} nguồn: Tài=${taiCount}, Xỉu=${xiuCount}. `;
+
+    let finalPrediction = prediction;
+    let finalConfidence = confidence;
+    let reverseFlag = false;
+
+    if (confidence < CONFIG.CONFIDENCE_THRESHOLD) {
+        finalPrediction = (prediction === "Tài") ? "Xỉu" : "Tài";
+        finalConfidence = 100 - confidence;
+        reverseFlag = true;
+        reason += `Độ tin cậy ${confidence}% < ngưỡng ${CONFIG.CONFIDENCE_THRESHOLD}%, tự động đảo ngược thành ${finalPrediction} (độ tin cậy mới: ${finalConfidence}%). `;
+    } else {
+        reason += `Độ tin cậy ${confidence}% >= ngưỡng ${CONFIG.CONFIDENCE_THRESHOLD}%, giữ nguyên dự đoán. `;
+    }
+
+    reason += `Chi tiết: ${details.join('; ')}`;
+
+    return {
+        prediction: finalPrediction,
+        confidence: finalConfidence,
+        original_prediction: prediction,
+        original_confidence: confidence,
+        reversed: reverseFlag,
+        reason: reason,
+        sources: validData.map(d => d.source),
+        total_sources: total,
+        tai_count: taiCount,
+        xiu_count: xiuCount
+    };
+}
+
+// ============================================================
 // START
 // ============================================================
 console.log('🚀 API Predictor started');
@@ -2051,12 +2392,16 @@ console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
 console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
 console.log(`📊 Endpoints:`);
 console.log(`   /              - Health check`);
-console.log(`   /predict       - Dự đoán mới nhất`);
+console.log(`   /predict       - Dự đoán mới nhất (có tự động đảo ngược)`);
+console.log(`   /predict-all   - Dự đoán tổng hợp từ nhiều API`);
 console.log(`   /history       - Lịch sử 30 phiên`);
 console.log(`   /all-predictions - Tất cả dự đoán đã lưu`);
+console.log(`   /{apiType}{gameName} - API từng game (VD: /txsunwin)`);
 console.log('─────────────────────────────');
 console.log('📚 PATTERN DB loaded: ' + Object.keys(PATTERN_DB).length + ' patterns');
 console.log('🧠 Combined algorithms: 25+ algorithms');
+console.log(`🔄 Confidence threshold: ${CONFIG.CONFIDENCE_THRESHOLD}% (auto-reverse enabled)`);
+console.log(`📌 Đã tích hợp ${Object.keys(API_SOURCES).length} game API`);
 
 setTimeout(fetchAndPredict, 1000);
 setInterval(fetchAndPredict, CONFIG.POLL_INTERVAL);

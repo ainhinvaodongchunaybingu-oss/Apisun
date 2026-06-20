@@ -101,7 +101,7 @@ const API_SOURCES = {
 // ============================================================
 const CONFIG = {
     API_URL: 'http://103.249.116.192:1001/api/ditmemaysun',
-    POLL_INTERVAL: 3000, // 3 giây
+    POLL_INTERVAL: 3000,
     HISTORY_KEY: "sun_predict_history_v1",
     PATTERN_MEM_KEY: "sun_predict_pattern_mem_v1",
     ERROR_MEM_KEY: "sun_predict_error_mem_v1",
@@ -132,10 +132,11 @@ setInterval(() => {
 // ============================================================
 // BIẾN TOÀN CỤ CHO POLLING
 // ============================================================
-const allGameData = {}; // Lưu dữ liệu mới nhất của từng game
-const allGamePredictions = {}; // Lưu dự đoán mới nhất của từng game
-const gameHistory = {}; // Lưu lịch sử từng game
-const lastPhienMap = {}; // Lưu phiên cuối của từng game
+const allGameData = {};
+const allGamePredictions = {};
+const gameHistory = {};
+const lastPhienMap = {};
+const gamePredictors = {};
 
 // ============================================================
 // UTILITIES
@@ -441,7 +442,7 @@ function predictByPatternDB(seq) {
                 pattern: subPattern,
                 prediction: result.prediction === 'Tài' ? 'T' : 'X',
                 confidence: result.confidence / 100,
-                reason: `Khớp mẫu '${subPattern}' (độ tin cậy ${result.confidence}%)`
+                reason: `📊 Khớp mẫu '${subPattern}' (độ tin cậy ${result.confidence}%)`
             };
         }
     }
@@ -1237,7 +1238,7 @@ function du_doan_js(data_kq, dem_sai, pattern_sai, xx, diem_lich_su, data_store)
             return { 
                 pred: dbResult.prediction, 
                 score: Math.min(score, 99), 
-                reason: `📊 ${dbResult.reason}`
+                reason: `${dbResult.reason}`
             };
         }
 
@@ -1986,9 +1987,9 @@ class PredictorService {
             ensemble: modelOut,
             du_doan: duObj,
             manual: manualObj,
-            reason,
-            roadType,
-            runInfo,
+            reason: reason,
+            roadType: roadType,
+            runInfo: runInfo,
             history_len: this.history.length,
             last_round: last
         };
@@ -2004,13 +2005,14 @@ class PredictorService {
 }
 
 // ============================================================
-// KHỞI TẠO PREDICTOR
+// KHỞI TẠO PREDICTOR CHO TỪNG GAME
 // ============================================================
-let predictor = new PredictorService([]);
-let lastPhien = null;
-let isProcessing = false;
-let latestRound = null;
-let latestPrediction = null;
+function getOrCreatePredictor(gameKey) {
+    if (!gamePredictors[gameKey]) {
+        gamePredictors[gameKey] = new PredictorService([]);
+    }
+    return gamePredictors[gameKey];
+}
 
 // ============================================================
 // HÀM GỌI API TỔNG QUÁT
@@ -2036,7 +2038,7 @@ async function fetchAPI(url, timeout = 5000) {
 }
 
 // ============================================================
-// HÀM CHUẨN HÓA DỮ LIỆU VÀ DỰ ĐOÁN
+// HÀM CHUẨN HÓA DỮ LIỆU VÀ DỰ ĐOÁN - FULL THUẬT TOÁN
 // ============================================================
 function normalizeAndPredict(rawData, gameName, apiType, sourceUrl) {
     if (!rawData) return null;
@@ -2066,7 +2068,13 @@ function normalizeAndPredict(rawData, gameName, apiType, sourceUrl) {
         }
     }
 
-    const history = [];
+    const gameKey = `${gameName}-${apiType}`;
+    const predictor = getOrCreatePredictor(gameKey);
+
+    let duDoan = null;
+    let confidence = 0;
+    let reason = "Chưa có dữ liệu để dự đoán";
+
     if (phien && x1 && x2 && x3 && tong !== null && ketqua) {
         const round = {
             Phien: phien,
@@ -2076,18 +2084,13 @@ function normalizeAndPredict(rawData, gameName, apiType, sourceUrl) {
             Tong: tong,
             Ket_qua: ketqua
         };
-        history.push(round);
-    }
-
-    let duDoan = null;
-    let confidence = 0;
-    let reason = "Chưa có dữ liệu để dự đoán";
-
-    if (history.length > 0) {
+        
+        // Học dữ liệu mới
+        predictor.learn(round);
+        
+        // Dự đoán
         try {
-            const tempPredictor = new PredictorService([]);
-            tempPredictor.history = history;
-            const predResult = tempPredictor.predict();
+            const predResult = predictor.predict();
             duDoan = predResult.prediction;
             confidence = predResult.confidence;
             reason = predResult.reason;
@@ -2104,7 +2107,7 @@ function normalizeAndPredict(rawData, gameName, apiType, sourceUrl) {
         game: gameName,
         api_type: apiType,
         source_url: sourceUrl,
-        Phien: phien,
+        Phien: phien || null,
         Xuc_xac1: parseInt(x1) || 0,
         Xuc_xac2: parseInt(x2) || 0,
         Xuc_xac3: parseInt(x3) || 0,
@@ -2115,7 +2118,7 @@ function normalizeAndPredict(rawData, gameName, apiType, sourceUrl) {
         meta: {
             timestamp: nowStr(),
             reason: reason || "Không có lý do",
-            confidence: confidence
+            confidence: confidence || 0
         }
     };
 }
@@ -2152,18 +2155,15 @@ async function pollAllAPIs() {
                 const rawData = result.value;
                 const phien = rawData.phien || rawData.Phien || rawData.id || null;
                 
-                // Kiểm tra phiên mới
                 if (phien && phien !== lastPhienMap[key]) {
                     lastPhienMap[key] = phien;
                     newDataCount++;
                     
-                    // Chuẩn hóa và dự đoán
                     const predResult = normalizeAndPredict(rawData, task.game, task.type, task.url);
                     if (predResult) {
                         allGameData[key] = rawData;
                         allGamePredictions[key] = predResult;
                         
-                        // Lưu lịch sử
                         if (!gameHistory[key]) gameHistory[key] = [];
                         gameHistory[key].push({
                             phien: phien,
@@ -2206,7 +2206,7 @@ function getLatestFromCache(gameName, apiType) {
 app.get('/', (req, res) => {
     res.json({
         status: 'running',
-        message: 'Multi-API Predictor with Polling',
+        message: 'Multi-API Predictor with Polling - Full Algorithm',
         version: '2.0',
         time: new Date().toISOString(),
         keepAlive: keepAliveCount,
@@ -2281,7 +2281,7 @@ app.get('/all-games-data', (req, res) => {
                 url: url,
                 data: cache.data,
                 prediction: cache.prediction,
-                history: cache.history.slice(-20) // 20 lịch sử gần nhất
+                history: cache.history.slice(-20)
             };
         }
     }
@@ -2344,24 +2344,33 @@ app.get('/predict-all-cached', (req, res) => {
 });
 
 // ============================================================
-// TẠO ENDPOINT ĐỘNG CHO TỪNG GAME (LẤY TỪ CACHE)
+// TẠO ENDPOINT ĐỘNG CHO TỪNG GAME (LẤY TỪ CACHE + FULL THUẬT TOÁN)
 // ============================================================
 for (const [gameName, config] of Object.entries(API_SOURCES)) {
     for (const [apiType, url] of Object.entries(config)) {
         const routePath = `/${apiType}${gameName}`;
         app.get(routePath, async (req, res) => {
-            // Lấy dữ liệu từ cache
             const cache = getLatestFromCache(gameName, apiType);
             
             if (cache.prediction) {
-                return res.json({
-                    ...cache.prediction,
-                    cached_at: nowStr(),
-                    from_cache: true
-                });
+                const pred = cache.prediction;
+                const exportObj = {
+                    game: pred.game,
+                    api_type: pred.api_type,
+                    source_url: pred.source_url,
+                    Phien: pred.Phien,
+                    Xuc_xac1: pred.Xuc_xac1,
+                    Xuc_xac2: pred.Xuc_xac2,
+                    Xuc_xac3: pred.Xuc_xac3,
+                    Tong: pred.Tong,
+                    Ketqua: pred.Ketqua,
+                    Du_doan: pred.Du_doan,
+                    cre: pred.cre,
+                    meta: pred.meta
+                };
+                return res.json(exportObj);
             }
             
-            // Fallback: gọi trực tiếp API
             try {
                 const rawData = await fetchAPI(url);
                 if (!rawData) {
@@ -2379,11 +2388,22 @@ for (const [gameName, config] of Object.entries(API_SOURCES)) {
                     });
                 }
                 
-                res.json({
-                    ...result,
-                    cached_at: nowStr(),
-                    from_cache: false
-                });
+                const exportObj = {
+                    game: result.game,
+                    api_type: result.api_type,
+                    source_url: result.source_url,
+                    Phien: result.Phien,
+                    Xuc_xac1: result.Xuc_xac1,
+                    Xuc_xac2: result.Xuc_xac2,
+                    Xuc_xac3: result.Xuc_xac3,
+                    Tong: result.Tong,
+                    Ketqua: result.Ketqua,
+                    Du_doan: result.Du_doan,
+                    cre: result.cre,
+                    meta: result.meta
+                };
+                
+                res.json(exportObj);
             } catch (error) {
                 res.status(500).json({
                     error: `Lỗi khi xử lý dữ liệu từ game "${gameName}"`,
@@ -2391,7 +2411,7 @@ for (const [gameName, config] of Object.entries(API_SOURCES)) {
                 });
             }
         });
-        console.log(`✅ Route created: ${routePath} (cached)`);
+        console.log(`✅ Route created: ${routePath} (full algorithm)`);
     }
 }
 
@@ -2479,7 +2499,7 @@ app.get('/predict-all', async (req, res) => {
 // ============================================================
 // START
 // ============================================================
-console.log('🚀 Multi-API Predictor with Polling started');
+console.log('🚀 Multi-API Predictor with Polling - Full Algorithm started');
 console.log(`📡 API: ${CONFIG.API_URL}`);
 console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
 console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
@@ -2567,4 +2587,4 @@ async function fetchAndPredict() {
     }
 
     isProcessing = false;
-    }
+}

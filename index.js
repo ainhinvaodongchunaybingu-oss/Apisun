@@ -1,5 +1,5 @@
 // ============================================================
-// api_predict_render.js - 35 THUẬT TOÁN DỰ ĐOÁN TÀI/XỈU
+// api_predict_render.js - FULL 35+ THUẬT TOÁN DỰ ĐOÁN
 // ============================================================
 
 const express = require('express');
@@ -86,7 +86,7 @@ function computeRunLength(seq) {
 }
 
 // ============================================================
-// THUẬT TOÁN 1: PATTERN DB - 200+ MẪU CẦU
+// PATTERN DATABASE - 200+ MẪU
 // ============================================================
 const PATTERN_DB = {
     "TXT": { pred: 'X', conf: 68 },
@@ -340,21 +340,8 @@ const PATTERN_DB = {
     "XXXXXXX": { pred: 'T', conf: 83 }
 };
 
-function algo_patternDB(seq) {
-    let patternStr = seq.join('');
-    const maxLen = Math.min(patternStr.length, 20);
-    for (let len = maxLen; len >= 1; len--) {
-        const subPattern = patternStr.slice(-len);
-        if (PATTERN_DB[subPattern]) {
-            const result = PATTERN_DB[subPattern];
-            return { pred: result.pred, conf: result.conf, name: `Pattern DB - ${subPattern}` };
-        }
-    }
-    return null;
-}
-
 // ============================================================
-// THUẬT TOÁN 2: MANUAL PATTERNS
+// MANUAL PATTERNS
 // ============================================================
 const MANUAL_PATTERNS = [
     { pair: [15, 6], pred: 'T', note: '15 6 → Tài' },
@@ -367,10 +354,53 @@ const MANUAL_PATTERNS = [
     { pair: [10, 8, 9], pred: 'T', note: '10 8 9 → Tài' },
     { pair: [9, 14], pred: 'X', note: '9 14 → Xỉu' },
     { pair: [8, 9, 14], pred: 'X', note: '8 9 14 → Xỉu' },
-    { pair: [8, 9, 14, 7], pred: 'X', note: '8 9 14 7 → Xỉu' },
-    { pair: [14, 7, 9], pred: 'X', note: '14 7 9 → Xỉu' },
-    { pair: [7, 9, 4], pred: 'T', note: '7 9 4 → Tài' },
+    { pair: [7, 6], pred: 'T', note: '7 6 → Tài' },
+    { pair: [6, 7], pred: 'X', note: '6 7 → Xỉu' },
+    { pair: [8, 7], pred: 'T', note: '8 7 → Tài' },
+    { pair: [7, 8], pred: 'X', note: '7 8 → Xỉu' },
     { pair: [9, 4], pred: 'T', note: '9 4 → Tài' },
+    { pair: [4, 9], pred: 'X', note: '4 9 → Xỉu' },
+    { pair: [11, 11], pred: 'T', note: '11 11 → Tài' },
+    { pair: [18], pred: 'T', note: '18 → Tài' },
+    { pair: [7, 6, 13], pred: 'X', note: '7 6 13 → Xỉu' },
+    { pair: [13, 13, 14], pred: 'T', note: '13 13 14 → Tài' },
+    { pair: [15, 14, 13], pred: 'X', note: '15 xuống 14 13 → Xỉu' },
+    { pair: [15, 17, 16], pred: 'T', note: '15 lên 17 16 → Tài' },
+    { pair: [12, 12], pred: 'T', note: '12 12 → Tài' },
+    { pair: [14, 14], pred: 'T', note: '14 14 → Tài' },
+    { pair: [10, 10], pred: 'T', note: '10 10 → Tài' },
+    { pair: [17, 17], pred: 'T', note: '17 17 → Tài' },
+    { pair: [11, 18], pred: 'T', note: '11 18 → Tài' },
+    { pair: [15, 18], pred: 'T', note: '15 18 → Tài' },
+    { pair: [9, 18], pred: 'T', note: '9 18 → Tài' },
+    { pair: [13, 18], pred: 'T', note: '13 18 → Tài' },
+    { pair: [9, 10], pred: 'T', note: '9 10 → Tài' },
+    { pair: [10, 9], pred: 'T', note: '10 9 → Tài' },
+    { pair: [14, 11], pred: 'T', note: '14 11 → Tài' },
+    { pair: [8, 10], pred: 'T', note: '8 10 → Tài' },
+    { pair: [7, 10], pred: 'T', note: '7 10 → Tài' },
+    { pair: [6, 10], pred: 'T', note: '6 10 → Tài' },
+    { pair: [5, 10], pred: 'T', note: '5 10 → Tài' },
+    { pair: [3, 7], pred: 'T', note: '3 7 → Tài' },
+    { pair: [3, 9], pred: 'T', note: '3 9 → Tài' },
+    { pair: [3, 10], pred: 'T', note: '3 10 → Tài' },
+    { pair: [4, 9], pred: 'T', note: '4 9 → Tài' },
+    { pair: [13, 15], pred: 'T', note: '13 15 → Tài' },
+    { pair: [14, 15], pred: 'T', note: '14 15 → Tài' },
+    { pair: [15, 13], pred: 'X', note: '15 13 → Xỉu' },
+    { pair: [15, 14], pred: 'X', note: '15 14 → Xỉu' },
+    { pair: [8, 9], pred: 'X', note: '8 9 → Xỉu' },
+    { pair: [9, 15], pred: 'X', note: '9 15 → Xỉu' },
+    { pair: [15, 10], pred: 'X', note: '15 10 → Xỉu' },
+    { pair: [10, 11], pred: 'X', note: '10 11 → Xỉu' },
+    { pair: [11, 10], pred: 'T', note: '11 10 → Tài' },
+    { pair: [14, 4], pred: 'X', note: '14 4 → Xỉu' },
+    { pair: [13, 5], pred: 'X', note: '13 5 → Xỉu' },
+    { pair: [12, 5], pred: 'T', note: '12 5 → Tài' },
+    { pair: [11, 4], pred: 'X', note: '11 4 → Xỉu' },
+    { pair: [10, 3], pred: 'X', note: '10 3 → Xỉu' },
+    { pair: [9, 3], pred: 'X', note: '9 3 → Xỉu' },
+    { pair: [6, 3], pred: 'X', note: '6 3 → Xỉu' },
     { pair: [4, 13], pred: 'X', note: '4 13 → Xỉu' },
     { pair: [4, 13, 10], pred: 'T', note: '4 13 10 → Tài' },
     { pair: [13, 10], pred: 'T', note: '13 10 → Tài' },
@@ -385,24 +415,19 @@ const MANUAL_PATTERNS = [
     { pair: [13, 8, 9], pred: 'T', note: '13 8 9 → Tài' },
     { pair: [8, 9, 11], pred: 'T', note: '8 9 11 → Tài' },
     { pair: [8, 9, 11, 11], pred: 'T', note: '8 9 11 11 → Tài' },
-    { pair: [11, 11], pred: 'T', note: '11 11 → Tài' },
     { pair: [9, 11, 11], pred: 'T', note: '9 11 11 → Tài' },
     { pair: [11, 11, 18], pred: 'T', note: '11 11 18 → Tài' },
-    { pair: [11, 18], pred: 'T', note: '11 18 → Tài' },
     { pair: [18, 13], pred: 'X', note: '18 13 → Xỉu' },
     { pair: [18, 16], pred: 'T', note: '18 16 → Tài' },
     { pair: [18, 15], pred: 'T', note: '18 15 → Tài' },
     { pair: [18, 15, 11], pred: 'X', note: '18 15 11 → Xỉu' },
     { pair: [15, 11], pred: 'X', note: '15 11 → Xỉu' },
     { pair: [11, 7], pred: 'X', note: '11 7 → Xỉu' },
-    { pair: [7, 6], pred: 'T', note: '7 6 → Tài' },
-    { pair: [7, 6, 13], pred: 'X', note: '7 6 13 → Xỉu' },
     { pair: [6, 13], pred: 'X', note: '6 13 → Xỉu' },
     { pair: [11, 7, 6], pred: 'T', note: '11 7 6 → Tài' },
     { pair: [18, 17], pred: 'T', note: '18 17 → Tài' },
     { pair: [17, 15], pred: 'T', note: '17 15 → Tài' },
     { pair: [17, 12], pred: 'X', note: '17 12 → Xỉu' },
-    { pair: [17, 17], pred: 'T', note: '17 17 → Tài' },
     { pair: [17, 18], pred: 'T', note: '17 18 → Tài' },
     { pair: [17, 13, 13], pred: 'X', note: '17 13 13 → Xỉu' },
     { pair: [15, 13], pred: 'X', note: '15 13 → Xỉu' },
@@ -420,12 +445,10 @@ const MANUAL_PATTERNS = [
     { pair: [10, 13], pred: 'X', note: '10 13 → Xỉu' },
     { pair: [14, 11, 10, 13], pred: 'X', note: '14 11 10 13 → Xỉu' },
     { pair: [10, 13, 5], pred: 'X', note: '10 13 5 → Xỉu' },
-    { pair: [13, 5], pred: 'X', note: '13 5 → Xỉu' },
     { pair: [13, 5, 8], pred: 'T', note: '13 5 8 → Tài' },
     { pair: [5, 8], pred: 'T', note: '5 8 → Tài' },
     { pair: [10, 13, 5, 8], pred: 'T', note: '10 13 5 8 → Tài' },
     { pair: [5, 8, 14], pred: 'T', note: '5 8 14 → Tài' },
-    { pair: [8, 14], pred: 'T', note: '8 14 → Tài' },
     { pair: [5, 8, 14, 17], pred: 'X', note: '5 8 14 17 → Xỉu' },
     { pair: [8, 14, 17], pred: 'X', note: '8 14 17 → Xỉu' },
     { pair: [17, 8], pred: 'T', note: '17 8 → Tài' },
@@ -435,10 +458,8 @@ const MANUAL_PATTERNS = [
     { pair: [11, 9, 13], pred: 'T', note: '11 9 13 → Tài' },
     { pair: [9, 13], pred: 'T', note: '9 13 → Tài' },
     { pair: [9, 13, 15], pred: 'X', note: '9 13 15 → Xỉu' },
-    { pair: [13, 15], pred: 'X', note: '13 15 → Xỉu' },
     { pair: [15, 5], pred: 'X', note: '15 5 → Xỉu' },
     { pair: [13, 15, 5], pred: 'X', note: '13 15 5 → Xỉu' },
-    { pair: [5, 10], pred: 'T', note: '5 10 → Tài' },
     { pair: [15, 5, 10], pred: 'X', note: '15 5 10 → Xỉu' },
     { pair: [8, 6], pred: 'T', note: '8 6 → Tài' },
     { pair: [10, 8, 6], pred: 'T', note: '10 8 6 → Tài' },
@@ -455,7 +476,6 @@ const MANUAL_PATTERNS = [
     { pair: [13, 10, 9], pred: 'T', note: '13 10 9 → Tài' },
     { pair: [14, 13], pred: 'X', note: '14 13 → Xỉu' },
     { pair: [9, 16], pred: 'X', note: '9 16 → Xỉu' },
-    { pair: [10, 10], pred: 'T', note: '10 10 → Tài' },
     { pair: [7, 15, 11], pred: 'X', note: '7 15 11 → Xỉu' },
     { pair: [9, 16, 9], pred: 'X', note: '9 16 9 → Xỉu' },
     { pair: [16, 9, 9], pred: 'T', note: '16 9 9 → Tài' },
@@ -499,64 +519,37 @@ const MANUAL_PATTERNS = [
     { pair: [12, 18], pred: 'X', note: '12 18 → Xỉu' },
     { pair: [18, 10], pred: 'T', note: '18 10 → Tài' },
     { pair: [12, 9, 8], pred: 'T', note: '12 9 8 → Tài' },
-    { pair: [15, 14, 13], pred: 'X', note: '15 xuống 14 13 → Xỉu' },
-    { pair: [15, 17, 16], pred: 'T', note: '15 lên 17 16 → Tài' },
-    { pair: [11, 13, 13], pred: 'X', note: '13 13 → Xỉu' },
-    { pair: [14, 14], pred: 'T', note: '14 14 → Tài' },
-    { pair: [12, 12], pred: 'T', note: '12 12 → Tài' },
+    { pair: [11, 13, 13], pred: 'X', note: '11 13 13 → Xỉu' },
     { pair: [5, 7], pred: 'X', note: '5 7 → Xỉu' },
-    { pair: [6, 7], pred: 'T', note: '6 7 → Tài' },
-    { pair: [12, 6], pred: 'T', note: '12 6 → Tài' },
     { pair: [11, 6], pred: 'X', note: '11 6 → Xỉu' },
     { pair: [15, 9], pred: 'T', note: '15 9 → Tài' },
-    { pair: [11, 11], pred: 'T', note: '11 11 → Tài' },
     { pair: [12, 11], pred: 'T', note: '12 11 → Tài' },
-    { pair: [13, 13, 14], pred: 'T', note: '13 13 14 → Tài' },
     { pair: [7, 17], pred: 'X', note: '7 17 → Xỉu' },
     { pair: [10, 17], pred: 'X', note: '10 17 → Xỉu' },
-    { pair: [17, 17], pred: 'T', note: '17 17 → Tài' },
-    { pair: [17, 18], pred: 'T', note: '17 18 → Tài' },
-    { pair: [18], pred: 'T', note: '18 → Tài' },
     { pair: [9, 12], pred: 'X', note: '9 12 → Xỉu' },
     { pair: [8, 11], pred: 'X', note: '8 11 → Xỉu' },
-    { pair: [11, 7], pred: 'X', note: '11 7 → Xỉu' },
-    { pair: [10, 8], pred: 'X', note: '10 8 → Xỉu' },
-    { pair: [10, 7], pred: 'X', note: '10 7 → Xỉu' },
-    { pair: [10, 9], pred: 'T', note: '10 9 → Tài' },
-    { pair: [9, 10], pred: 'T', note: '9 10 → Tài' },
-    { pair: [14, 11], pred: 'T', note: '14 11 → Tài' },
-    { pair: [8, 9], pred: 'X', note: '8 9 → Xỉu' },
-    { pair: [9, 15], pred: 'X', note: '9 15 → Xỉu' },
-    { pair: [15, 10], pred: 'X', note: '15 10 → Xỉu' },
-    { pair: [7, 10], pred: 'T', note: '7 10 → Tài' },
-    { pair: [8, 10], pred: 'T', note: '8 10 → Tài' },
-    { pair: [10, 11], pred: 'X', note: '10 11 → Xỉu' },
-    { pair: [11, 10], pred: 'T', note: '11 10 → Tài' },
-    { pair: [14, 4], pred: 'X', note: '14 4 → Xỉu' },
-    { pair: [13, 5], pred: 'X', note: '13 5 → Xỉu' },
-    { pair: [12, 5], pred: 'T', note: '12 5 → Tài' },
-    { pair: [11, 4], pred: 'X', note: '11 4 → Xỉu' },
-    { pair: [10, 3], pred: 'X', note: '10 3 → Xỉu' },
-    { pair: [9, 3], pred: 'X', note: '9 3 → Xỉu' },
-    { pair: [6, 3], pred: 'X', note: '6 3 → Xỉu' },
-    { pair: [3, 7], pred: 'T', note: '3 7 → Tài' },
-    { pair: [3, 9], pred: 'T', note: '3 9 → Tài' },
-    { pair: [3, 10], pred: 'T', note: '3 10 → Tài' },
-    { pair: [4, 9], pred: 'T', note: '4 9 → Tài' },
-    { pair: [5, 10], pred: 'T', note: '5 10 → Tài' },
-    { pair: [6, 10], pred: 'T', note: '6 10 → Tài' },
-    { pair: [7, 10], pred: 'T', note: '7 10 → Tài' },
-    { pair: [11, 18], pred: 'T', note: '11 18 → Tài' },
-    { pair: [15, 18], pred: 'T', note: '15 18 → Tài' },
-    { pair: [9, 18], pred: 'T', note: '9 18 → Tài' },
-    { pair: [13, 18], pred: 'T', note: '13 18 → Tài' },
-    { pair: [13, 15], pred: 'T', note: '13 15 → Tài' },
-    { pair: [14, 15], pred: 'T', note: '14 15 → Tài' },
-    { pair: [11, 15], pred: 'X', note: '11 15 → Xỉu' },
-    { pair: [15, 14], pred: 'X', note: '15 14 → Xỉu' },
-    { pair: [15, 13], pred: 'X', note: '15 13 → Xỉu' },
+    { pair: [10, 7], pred: 'X', note: '10 7 → Xỉu' }
 ];
 
+// ============================================================
+// THUẬT TOÁN 1: PATTERN DB
+// ============================================================
+function algo_patternDB(seq) {
+    let patternStr = seq.join('');
+    const maxLen = Math.min(patternStr.length, 20);
+    for (let len = maxLen; len >= 1; len--) {
+        const subPattern = patternStr.slice(-len);
+        if (PATTERN_DB[subPattern]) {
+            const result = PATTERN_DB[subPattern];
+            return { pred: result.pred, conf: result.conf, name: `Pattern DB - ${subPattern}` };
+        }
+    }
+    return null;
+}
+
+// ============================================================
+// THUẬT TOÁN 2: MANUAL PATTERNS
+// ============================================================
 function algo_manualPatterns(totals) {
     for (let pat of MANUAL_PATTERNS) {
         const p = pat.pair;
@@ -576,128 +569,62 @@ function algo_manualPatterns(totals) {
 }
 
 // ============================================================
-// THUẬT TOÁN 3: CLASSIC PATTERNS
+// THUẬT TOÁN 3-13: CÁC THUẬT TOÁN TỪ CODE GỐC
 // ============================================================
+
+// 3. Classic Patterns
 function algo_classicPatterns(seq, totals) {
     const patternStr = seq.join('');
-    
-    if (patternStr.endsWith("TXT")) {
-        return { pred: 'X', conf: randomInt(80, 100), name: 'Classic TXT' };
-    }
-    if (patternStr.endsWith("XTX")) {
-        return { pred: 'T', conf: randomInt(80, 100), name: 'Classic XTX' };
-    }
-    if (patternStr.endsWith("TTX")) {
-        return { pred: 'X', conf: randomInt(80, 100), name: 'Classic TTX' };
-    }
-    if (patternStr.endsWith("XXT")) {
-        return { pred: 'T', conf: randomInt(80, 100), name: 'Classic XXT' };
-    }
-    if (patternStr.endsWith("TXXT")) {
-        return { pred: 'T', conf: randomInt(80, 100), name: 'Classic TXXT' };
-    }
-    if (patternStr.endsWith("XTTX")) {
-        return { pred: 'X', conf: randomInt(80, 100), name: 'Classic XTTX' };
-    }
+    if (patternStr.endsWith("TXT")) return { pred: 'X', conf: randomInt(80, 100), name: 'Classic TXT' };
+    if (patternStr.endsWith("XTX")) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic XTX' };
+    if (patternStr.endsWith("TTX")) return { pred: 'X', conf: randomInt(80, 100), name: 'Classic TTX' };
+    if (patternStr.endsWith("XXT")) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic XXT' };
     
     if (totals && totals.length >= 2) {
         const lastTwo = totals.slice(-2);
         const lastThree = totals.length >= 3 ? totals.slice(-3) : null;
-        
-        if (lastTwo[0] === 7 && lastTwo[1] === 6) {
-            return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 7 6 → Tài' };
-        }
-        if (lastTwo[0] === 6 && lastTwo[1] === 7) {
-            return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 6 7 → Xỉu' };
-        }
-        if (lastTwo[0] === 8 && lastTwo[1] === 7) {
-            return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 8 7 → Tài' };
-        }
-        if (lastTwo[0] === 7 && lastTwo[1] === 8) {
-            return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 7 8 → Xỉu' };
-        }
-        if (lastTwo[0] === 9 && lastTwo[1] === 4) {
-            return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 9 4 → Tài' };
-        }
-        if (lastTwo[0] === 4 && lastTwo[1] === 9) {
-            return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 4 9 → Xỉu' };
-        }
-        if (lastTwo[0] === 15 && lastTwo[1] === 6) {
-            return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 15 6 → Tài' };
-        }
-        if (lastTwo[0] === 10 && lastTwo[1] === 8) {
-            return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 10 8 → Xỉu' };
-        }
-        if (lastTwo[0] === 6 && lastTwo[1] === 9) {
-            return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 6 9 → Tài' };
-        }
-        if (lastTwo[0] === 11 && lastTwo[1] === 11) {
-            return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 11 11 → Tài' };
-        }
-        if (lastTwo[0] === 18 || lastTwo[1] === 18) {
-            return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 18 → Tài' };
-        }
-        
-        if (lastThree) {
-            if (lastThree[0] === 7 && lastThree[1] === 6 && lastThree[2] === 13) {
-                return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 7 6 13 → Xỉu' };
-            }
-            if (lastThree[0] === 9 && lastThree[1] === 10 && lastThree[2] === 8) {
-                return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 9 10 8 → Xỉu' };
-            }
-            if (lastThree[0] === 13 && lastThree[1] === 13 && lastThree[2] === 14) {
-                return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 13 13 14 → Tài' };
-            }
+        if (lastTwo[0] === 7 && lastTwo[1] === 6) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 7 6' };
+        if (lastTwo[0] === 6 && lastTwo[1] === 7) return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 6 7' };
+        if (lastTwo[0] === 8 && lastTwo[1] === 7) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 8 7' };
+        if (lastTwo[0] === 7 && lastTwo[1] === 8) return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 7 8' };
+        if (lastTwo[0] === 9 && lastTwo[1] === 4) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 9 4' };
+        if (lastTwo[0] === 4 && lastTwo[1] === 9) return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 4 9' };
+        if (lastTwo[0] === 15 && lastTwo[1] === 6) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 15 6' };
+        if (lastTwo[0] === 10 && lastTwo[1] === 8) return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 10 8' };
+        if (lastTwo[0] === 11 && lastTwo[1] === 11) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 11 11' };
+        if (lastTwo[0] === 18 || lastTwo[1] === 18) return { pred: 'T', conf: randomInt(80, 100), name: 'Classic 18' };
+        if (lastThree && lastThree[0] === 7 && lastThree[1] === 6 && lastThree[2] === 13) {
+            return { pred: 'X', conf: randomInt(80, 100), name: 'Classic 7 6 13' };
         }
     }
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 4: TỔNG ĐIỂM
-// ============================================================
+// 4. Tổng điểm
 function algo_totalScore(totals) {
     if (totals.length < 1) return null;
     const last = totals[totals.length - 1];
-    
-    if (last >= 16) {
-        return { pred: 'T', conf: randomInt(85, 98), name: `Tổng ${last} ≥16` };
-    }
-    if (last >= 13) {
-        return { pred: 'T', conf: randomInt(75, 90), name: `Tổng ${last} ≥13` };
-    }
-    if (last >= 11) {
-        return { pred: 'T', conf: randomInt(65, 85), name: `Tổng ${last} ≥11` };
-    }
-    if (last <= 6) {
-        return { pred: 'X', conf: randomInt(85, 98), name: `Tổng ${last} ≤6` };
-    }
-    if (last <= 8) {
-        return { pred: 'X', conf: randomInt(75, 90), name: `Tổng ${last} ≤8` };
-    }
-    if (last <= 10) {
-        return { pred: 'X', conf: randomInt(65, 85), name: `Tổng ${last} ≤10` };
-    }
+    if (last >= 16) return { pred: 'T', conf: randomInt(85, 98), name: `Tổng ${last} ≥16` };
+    if (last >= 13) return { pred: 'T', conf: randomInt(75, 90), name: `Tổng ${last} ≥13` };
+    if (last >= 11) return { pred: 'T', conf: randomInt(65, 85), name: `Tổng ${last} ≥11` };
+    if (last <= 6) return { pred: 'X', conf: randomInt(85, 98), name: `Tổng ${last} ≤6` };
+    if (last <= 8) return { pred: 'X', conf: randomInt(75, 90), name: `Tổng ${last} ≤8` };
+    if (last <= 10) return { pred: 'X', conf: randomInt(65, 85), name: `Tổng ${last} ≤10` };
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 5: XU HƯỚNG 5 PHIÊN
-// ============================================================
+// 5. Xu hướng 5
 function algo_trend5(seq) {
     if (seq.length < 5) return null;
     const recent = seq.slice(-5);
     const countT = recent.filter(x => x === 'T').length;
     const countX = recent.filter(x => x === 'X').length;
     if (countT === countX) return null;
-    const diff = Math.abs(countT - countX);
-    const conf = Math.min(randomInt(60 + diff * 8, 60 + diff * 8 + 10), 95);
+    const conf = Math.min(randomInt(60 + Math.abs(countT - countX) * 8, 60 + Math.abs(countT - countX) * 8 + 10), 95);
     return { pred: countT > countX ? 'T' : 'X', conf: conf, name: `Xu hướng ${countT}T/${countX}X` };
 }
 
-// ============================================================
-// THUẬT TOÁN 6: XU HƯỚNG 10 PHIÊN
-// ============================================================
+// 6. Xu hướng 10
 function algo_trend10(seq) {
     if (seq.length < 10) return null;
     const recent = seq.slice(-10);
@@ -708,9 +635,7 @@ function algo_trend10(seq) {
     return { pred: countT > countX ? 'T' : 'X', conf: conf, name: `Xu hướng 10: ${countT}T/${countX}X` };
 }
 
-// ============================================================
-// THUẬT TOÁN 7: CHUỖI - BẺ CẦU
-// ============================================================
+// 7. Bẻ cầu
 function algo_runBreak(seq) {
     if (seq.length < 2) return null;
     let runLen = 1;
@@ -719,18 +644,12 @@ function algo_runBreak(seq) {
         if (seq[i] === last) runLen++;
         else break;
     }
-    if (runLen >= 5) {
-        return { pred: last === 'T' ? 'X' : 'T', conf: randomInt(80, 95), name: `Bẻ cầu ${runLen} tay` };
-    }
-    if (runLen >= 4) {
-        return { pred: last === 'T' ? 'X' : 'T', conf: randomInt(70, 85), name: `Bẻ cầu ${runLen} tay` };
-    }
+    if (runLen >= 5) return { pred: last === 'T' ? 'X' : 'T', conf: randomInt(80, 95), name: `Bẻ cầu ${runLen} tay` };
+    if (runLen >= 4) return { pred: last === 'T' ? 'X' : 'T', conf: randomInt(70, 85), name: `Bẻ cầu ${runLen} tay` };
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 8: CHUỖI - THEO CẦU
-// ============================================================
+// 8. Theo cầu
 function algo_runFollow(seq) {
     if (seq.length < 2) return null;
     let runLen = 1;
@@ -739,18 +658,12 @@ function algo_runFollow(seq) {
         if (seq[i] === last) runLen++;
         else break;
     }
-    if (runLen >= 3 && runLen <= 4) {
-        return { pred: last, conf: randomInt(60, 75), name: `Theo cầu ${runLen} tay` };
-    }
-    if (runLen <= 2) {
-        return { pred: last, conf: randomInt(55, 70), name: `Tiếp tục ${last} (${runLen} tay)` };
-    }
+    if (runLen >= 3 && runLen <= 4) return { pred: last, conf: randomInt(60, 75), name: `Theo cầu ${runLen} tay` };
+    if (runLen <= 2) return { pred: last, conf: randomInt(55, 70), name: `Tiếp tục ${last} (${runLen} tay)` };
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 9: MARKOV BẬC 1
-// ============================================================
+// 9. Markov bậc 1
 function algo_markov1(seq) {
     if (seq.length < 2) return null;
     const last = seq[seq.length - 1];
@@ -766,9 +679,7 @@ function algo_markov1(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 10: MARKOV BẬC 2
-// ============================================================
+// 10. Markov bậc 2
 function algo_markov2(seq) {
     if (seq.length < 3) return null;
     const last2 = seq.slice(-2);
@@ -789,9 +700,7 @@ function algo_markov2(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 11: MARKOV BẬC 3
-// ============================================================
+// 11. Markov bậc 3
 function algo_markov3(seq) {
     if (seq.length < 4) return null;
     const last3 = seq.slice(-3);
@@ -812,9 +721,7 @@ function algo_markov3(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 12: TẦN SUẤT CÓ TRỌNG SỐ
-// ============================================================
+// 12. Tần suất
 function algo_frequency(seq) {
     if (seq.length < 5) return null;
     const window = Math.min(seq.length, 50);
@@ -832,9 +739,7 @@ function algo_frequency(seq) {
     return { pred: probT > 0.5 ? 'T' : 'X', conf: Math.min(Math.round(conf + 50), 95), name: 'Tần suất' };
 }
 
-// ============================================================
-// THUẬT TOÁN 13: ĐA SỐ ĐƠN GIẢN
-// ============================================================
+// 13. Đa số
 function algo_majority(seq) {
     if (seq.length < 10) return null;
     const recent = seq.slice(-15);
@@ -845,9 +750,7 @@ function algo_majority(seq) {
     return { pred: t > x ? 'T' : 'X', conf: Math.min(conf, 85), name: 'Đa số' };
 }
 
-// ============================================================
-// THUẬT TOÁN 14: CHÊNH LỆCH TÍCH LŨY
-// ============================================================
+// 14. Chênh lệch
 function algo_cumulative(seq) {
     if (seq.length < 15) return null;
     const recent = seq.slice(-25);
@@ -857,9 +760,7 @@ function algo_cumulative(seq) {
     return { pred: imbalance > 0 ? 'T' : 'X', conf: Math.min(conf, 85), name: 'Chênh lệch' };
 }
 
-// ============================================================
-// THUẬT TOÁN 15: CHU KỲ
-// ============================================================
+// 15. Chu kỳ
 function algo_cycle(seq) {
     if (seq.length < 10) return null;
     for (let cycle = 3; cycle <= Math.min(10, seq.length / 2); cycle++) {
@@ -879,9 +780,7 @@ function algo_cycle(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 16: FIBONACCI
-// ============================================================
+// 16. Fibonacci
 function algo_fibonacci(totals) {
     if (totals.length < 8) return null;
     const recent = totals.slice(-8);
@@ -893,9 +792,7 @@ function algo_fibonacci(totals) {
     return { pred: nextTotal > 10 ? 'T' : 'X', conf: Math.min(conf, 85), name: 'Fibonacci' };
 }
 
-// ============================================================
-// THUẬT TOÁN 17: RSI
-// ============================================================
+// 17. RSI
 function algo_rsi(seq) {
     if (seq.length < 8) return null;
     const period = 7;
@@ -916,9 +813,7 @@ function algo_rsi(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 18: BOLLINGER BANDS
-// ============================================================
+// 18. Bollinger
 function algo_bollinger(seq) {
     if (seq.length < 12) return null;
     const period = 12;
@@ -934,9 +829,7 @@ function algo_bollinger(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 19: MACD
-// ============================================================
+// 19. MACD
 function algo_macd(seq) {
     if (seq.length < 15) return null;
     const nums = seq.map(c => c === 'T' ? 1 : 0);
@@ -957,9 +850,7 @@ function algo_macd(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 20: STOCHASTIC
-// ============================================================
+// 20. Stochastic
 function algo_stochastic(seq) {
     if (seq.length < 7) return null;
     const period = 7;
@@ -973,9 +864,7 @@ function algo_stochastic(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 21: WILLIAMS %R
-// ============================================================
+// 21. Williams %R
 function algo_williams(seq) {
     if (seq.length < 7) return null;
     const period = 7;
@@ -989,9 +878,7 @@ function algo_williams(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 22: CCI
-// ============================================================
+// 22. CCI
 function algo_cci(seq) {
     if (seq.length < 10) return null;
     const period = 10;
@@ -1005,9 +892,7 @@ function algo_cci(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 23: ENTROPY
-// ============================================================
+// 23. Entropy
 function algo_entropy(seq) {
     if (seq.length < 12) return null;
     const window = 12;
@@ -1021,9 +906,7 @@ function algo_entropy(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 24: LINEAR REGRESSION
-// ============================================================
+// 24. Linear Regression
 function algo_linear(seq) {
     if (seq.length < 12) return null;
     const window = 12;
@@ -1043,9 +926,7 @@ function algo_linear(seq) {
     return { pred: pred > 0.5 ? 'T' : 'X', conf: Math.min(Math.round(conf), 85), name: 'Linear' };
 }
 
-// ============================================================
-// THUẬT TOÁN 25: KNN
-// ============================================================
+// 25. KNN
 function algo_knn(seq) {
     if (seq.length < 15) return null;
     const k = 5, lookback = 10;
@@ -1065,9 +946,7 @@ function algo_knn(seq) {
     return { pred: tCount > k - tCount ? 'T' : 'X', conf: Math.min(Math.round(conf), 85), name: 'KNN' };
 }
 
-// ============================================================
-// THUẬT TOÁN 26: NAIVE BAYES
-// ============================================================
+// 26. Naive Bayes
 function algo_naiveBayes(seq) {
     if (seq.length < 10) return null;
     const p_t = seq.filter(r => r === 'T').length / seq.length;
@@ -1092,35 +971,23 @@ function algo_naiveBayes(seq) {
     return { pred: post_t > post_x ? 'T' : 'X', conf: Math.min(Math.round(conf), 85), name: 'Naive Bayes' };
 }
 
-// ============================================================
-// THUẬT TOÁN 27: DECISION TREE
-// ============================================================
+// 27. Decision Tree
 function algo_decisionTree(seq) {
     if (seq.length < 10) return null;
     const last1 = seq[seq.length - 1];
     const last2 = seq.length > 1 ? seq[seq.length - 2] : null;
     const last3 = seq.length > 2 ? seq[seq.length - 3] : null;
     const t5 = seq.slice(-5).filter(c => c === 'T').length;
-    if (last1 === 'T' && last2 === 'T' && last3 === 'T') {
-        return { pred: 'X', conf: randomInt(75, 90), name: 'Decision Tree' };
-    }
-    if (last1 === 'X' && last2 === 'X' && last3 === 'X') {
-        return { pred: 'T', conf: randomInt(75, 90), name: 'Decision Tree' };
-    }
-    if (last1 === 'T' && last2 === 'X' && last3 === 'T') {
-        return { pred: 'X', conf: randomInt(70, 85), name: 'Decision Tree' };
-    }
-    if (last1 === 'X' && last2 === 'T' && last3 === 'X') {
-        return { pred: 'T', conf: randomInt(70, 85), name: 'Decision Tree' };
-    }
+    if (last1 === 'T' && last2 === 'T' && last3 === 'T') return { pred: 'X', conf: randomInt(75, 90), name: 'Decision Tree' };
+    if (last1 === 'X' && last2 === 'X' && last3 === 'X') return { pred: 'T', conf: randomInt(75, 90), name: 'Decision Tree' };
+    if (last1 === 'T' && last2 === 'X' && last3 === 'T') return { pred: 'X', conf: randomInt(70, 85), name: 'Decision Tree' };
+    if (last1 === 'X' && last2 === 'T' && last3 === 'X') return { pred: 'T', conf: randomInt(70, 85), name: 'Decision Tree' };
     if (t5 >= 4) return { pred: 'X', conf: randomInt(70, 85), name: 'Decision Tree' };
     if (t5 <= 1) return { pred: 'T', conf: randomInt(70, 85), name: 'Decision Tree' };
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 28: MEAN REVERSION
-// ============================================================
+// 28. Mean Reversion
 function algo_meanReversion(seq) {
     if (seq.length < 12) return null;
     const window = 12;
@@ -1131,9 +998,7 @@ function algo_meanReversion(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 29: PATTERN MATCHING
-// ============================================================
+// 29. Pattern Matching
 function algo_patternMatching(seq) {
     if (seq.length < 20) return null;
     const lookback = 15;
@@ -1155,27 +1020,19 @@ function algo_patternMatching(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 30: ZIGZAG
-// ============================================================
+// 30. Zigzag
 function algo_zigzag(seq) {
     if (seq.length < 5) return null;
     let changes = 0;
     for (let i = 1; i < Math.min(5, seq.length); i++) {
         if (seq[seq.length - i] !== seq[seq.length - i - 1]) changes++;
     }
-    if (changes >= 4) {
-        return { pred: seq[seq.length - 1] === 'T' ? 'X' : 'T', conf: randomInt(75, 92), name: 'Zigzag' };
-    }
-    if (changes >= 3) {
-        return { pred: seq[seq.length - 1], conf: randomInt(65, 80), name: 'Zigzag' };
-    }
+    if (changes >= 4) return { pred: seq[seq.length - 1] === 'T' ? 'X' : 'T', conf: randomInt(75, 92), name: 'Zigzag' };
+    if (changes >= 3) return { pred: seq[seq.length - 1], conf: randomInt(65, 80), name: 'Zigzag' };
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 31: CÂN BẰNG 2-2
-// ============================================================
+// 31. Cân bằng 2-2
 function algo_balance(seq) {
     if (seq.length < 4) return null;
     const last4 = seq.slice(-4);
@@ -1187,9 +1044,7 @@ function algo_balance(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 32: BỆT KÉP
-// ============================================================
+// 32. Bệt kép
 function algo_doubleRun(seq) {
     if (seq.length < 8) return null;
     const last8 = seq.slice(-8);
@@ -1200,9 +1055,7 @@ function algo_doubleRun(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 33: CẦU 1-1
-// ============================================================
+// 33. Cầu 1-1
 function algo_zigzagPattern(seq) {
     if (seq.length < 6) return null;
     const last6 = seq.slice(-6);
@@ -1219,34 +1072,67 @@ function algo_zigzagPattern(seq) {
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 34: PATTERN DETECTORS - CẦU 1-1
-// ============================================================
+// 34. Pattern Detect - Cầu 1-1
 function algo_detect_1_1(seq) {
-    if (seq.length >= 4 && seq.slice(-4).join('') === "TXTX") {
-        return { pred: 'X', conf: randomInt(85, 95), name: 'Cầu 1-1 TXTX' };
-    }
-    if (seq.length >= 4 && seq.slice(-4).join('') === "XTXT") {
-        return { pred: 'T', conf: randomInt(85, 95), name: 'Cầu 1-1 XTXT' };
-    }
+    if (seq.length >= 4 && seq.slice(-4).join('') === "TXTX") return { pred: 'X', conf: randomInt(85, 95), name: 'Cầu 1-1 TXTX' };
+    if (seq.length >= 4 && seq.slice(-4).join('') === "XTXT") return { pred: 'T', conf: randomInt(85, 95), name: 'Cầu 1-1 XTXT' };
     return null;
 }
 
-// ============================================================
-// THUẬT TOÁN 35: PATTERN DETECTORS - CẦU 2-2
-// ============================================================
+// 35. Pattern Detect - Cầu 2-2
 function algo_detect_2_2(seq) {
-    if (seq.length >= 4 && seq.slice(-4).join('') === "TTXX") {
-        return { pred: 'X', conf: randomInt(80, 92), name: 'Cầu 2-2 TTXX' };
+    if (seq.length >= 4 && seq.slice(-4).join('') === "TTXX") return { pred: 'X', conf: randomInt(80, 92), name: 'Cầu 2-2 TTXX' };
+    if (seq.length >= 4 && seq.slice(-4).join('') === "XXTT") return { pred: 'T', conf: randomInt(80, 92), name: 'Cầu 2-2 XXTT' };
+    return null;
+}
+
+// 36. Pattern Detect - Cầu 3-3
+function algo_detect_3_3(seq) {
+    if (seq.length >= 6 && seq.slice(-6).join('') === "TTTXXX") return { pred: 'X', conf: randomInt(75, 90), name: 'Cầu 3-3 TTTXXX' };
+    if (seq.length >= 6 && seq.slice(-6).join('') === "XXXTTT") return { pred: 'T', conf: randomInt(75, 90), name: 'Cầu 3-3 XXXTTT' };
+    return null;
+}
+
+// 37. Pattern Detect - Cầu 1-2-3
+function algo_detect_1_2_3(seq) {
+    if (seq.length >= 6 && seq.slice(-6).join('') === "TXXTTT") return { pred: 'X', conf: randomInt(75, 90), name: 'Cầu 1-2-3 TXXTTT' };
+    if (seq.length >= 6 && seq.slice(-6).join('') === "XTTXXX") return { pred: 'T', conf: randomInt(75, 90), name: 'Cầu 1-2-3 XTTXXX' };
+    return null;
+}
+
+// 38. Pattern Detect - Tam giác
+function algo_detect_triangle(seq) {
+    if (seq.length >= 5 && seq.slice(-5).join('') === "TXTXT") return { pred: 'X', conf: randomInt(78, 92), name: 'Cầu tam giác TXTXT' };
+    if (seq.length >= 5 && seq.slice(-5).join('') === "XTXTX") return { pred: 'T', conf: randomInt(78, 92), name: 'Cầu tam giác XTXTX' };
+    return null;
+}
+
+// 39. Pattern Detect - Rồng
+function algo_detect_dragon(seq) {
+    let tRun = 0;
+    for (let i = seq.length - 1; i >= 0; i--) {
+        if (seq[i] === 'T') tRun++;
+        else break;
     }
-    if (seq.length >= 4 && seq.slice(-4).join('') === "XXTT") {
-        return { pred: 'T', conf: randomInt(80, 92), name: 'Cầu 2-2 XXTT' };
+    if (tRun >= 6) return { pred: 'X', conf: randomInt(80, 92), name: `Cầu Rồng ${tRun}` };
+    if (tRun >= 4) return { pred: 'T', conf: randomInt(70, 85), name: `Cầu Rồng ${tRun}` };
+    return null;
+}
+
+// 40. Pattern Detect - Hổ
+function algo_detect_tiger(seq) {
+    let xRun = 0;
+    for (let i = seq.length - 1; i >= 0; i--) {
+        if (seq[i] === 'X') xRun++;
+        else break;
     }
+    if (xRun >= 6) return { pred: 'T', conf: randomInt(80, 92), name: `Cầu Hổ ${xRun}` };
+    if (xRun >= 4) return { pred: 'X', conf: randomInt(70, 85), name: `Cầu Hổ ${xRun}` };
     return null;
 }
 
 // ============================================================
-// DANH SÁCH TẤT CẢ 35 THUẬT TOÁN
+// DANH SÁCH TẤT CẢ THUẬT TOÁN
 // ============================================================
 const ALGORITHMS = [
     algo_patternDB,
@@ -1283,7 +1169,12 @@ const ALGORITHMS = [
     algo_doubleRun,
     algo_zigzagPattern,
     algo_detect_1_1,
-    algo_detect_2_2
+    algo_detect_2_2,
+    algo_detect_3_3,
+    algo_detect_1_2_3,
+    algo_detect_triangle,
+    algo_detect_dragon,
+    algo_detect_tiger
 ];
 
 // ============================================================
@@ -1302,7 +1193,7 @@ function predictAll(seq, totals) {
         const name = algo.name;
         
         if (name === 'algo_manualPatterns' || name === 'algo_totalScore' || 
-            name === 'algo_fibonacci' || name === 'algo_classicPatterns') {
+            name === 'algo_fibonacci') {
             result = algo(totals);
         } else if (name === 'algo_classicPatterns') {
             result = algo(seq, totals);
@@ -1440,7 +1331,7 @@ const predictor = new PredictorService();
 app.get('/', (req, res) => {
     res.json({
         status: 'running',
-        message: 'API Predictor - 35 Algorithms',
+        message: 'API Predictor - 40 Algorithms',
         time: new Date().toISOString(),
         keepAlive: keepAliveCount
     });
@@ -1495,7 +1386,7 @@ app.get('/history', (req, res) => {
 // ============================================================
 // START
 // ============================================================
-console.log('🚀 API Predictor - 35 Algorithms');
+console.log('🚀 API Predictor - 40 Algorithms');
 console.log(`📡 API: ${CONFIG.API_URL}`);
 console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
 console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);

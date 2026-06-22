@@ -37,6 +37,88 @@ const CONFIG = {
     CREATOR_ID: '@bucactaodi'
 };
 
+const API_SOURCES = {
+    "sunwin": {
+        "tx": "https://trails-wish-motel-legacy.trycloudflare.com/api/tx"
+    },
+    "Ogkfan": {
+        "txmd5": "https://guidance-discrete-dive-navigate.trycloudflare.com/api/txmd5/latest"
+    },
+    "Xocdia88": {
+        "tx": "https://pollution-seconds-sail-strikes.trycloudflare.com/api/taixiu"
+    },
+    "Hitclub": {
+        "tx": "https://subdivision-term-came-attempting.trycloudflare.com/api/tx",
+        "txmd5": "https://subdivision-term-came-attempting.trycloudflare.com/api/txmd5"
+    },
+    "Lc79": {
+        "tx": "https://thread-broke-artwork-compound.trycloudflare.com/api/tx",
+        "txmd5": "https://thread-broke-artwork-compound.trycloudflare.com/api/txmd5"
+    },
+    "Betvip": {
+        "tx": "https://stored-could-elder-mini.trycloudflare.com/api/tx",
+        "txmd5": "https://stored-could-elder-mini.trycloudflare.com/api/txmd5"
+    },
+    "789club": {
+        "tx": "https://packet-veterinary-organ-ministers.trycloudflare.com/api/tx",
+        "sicbo": "https://leslie-richardson-rrp-virtue.trycloudflare.com/sicbo/789club"
+    },
+    "B52": {
+        "tx": "https://years-expiration-autos-concert.trycloudflare.com/taixiu",
+        "txmd5": "https://years-expiration-autos-concert.trycloudflare.com/txmd5",
+        "sicbo": "https://leslie-richardson-rrp-virtue.trycloudflare.com/sicbo/b52"
+    },
+    "Iwin": {
+        "tx": "https://seek-vessels-peripherals-song.trycloudflare.com/api/tx",
+        "txmd5": "https://seek-vessels-peripherals-song.trycloudflare.com/api/txmd5"
+    },
+    "Max789": {
+        "tx": "https://expected-paying-pins-childhood.trycloudflare.com/api/tx",
+        "txmd5": "https://expected-paying-pins-childhood.trycloudflare.com/api/txmd5"
+    },
+    "Son789": {
+        "tx": "https://howto-out-excluding-tan.trycloudflare.com/api/tx",
+        "txmd5": "https://howto-out-excluding-tan.trycloudflare.com/api/txmd5"
+    },
+    "Luck8": {
+        "txmd5": "https://drawn-legislation-applicant-roberts.trycloudflare.com/api/txmd5",
+        "sicbo40s": "https://drawn-legislation-applicant-roberts.trycloudflare.com/api/sicbo40"
+    },
+    "Sumvin": {
+        "txmd5": "https://stories-meetings-injection-headlines.trycloudflare.com/api/md5"
+    },
+    "68gb": {
+        "tx": "https://financing-patio-beast-invention.trycloudflare.com/api/68/thuong",
+        "txmd5": "https://chuck-ent-nicole-leadership.trycloudflare.com/api/68/md5"
+    },
+    "Sun789": {
+        "tx": "https://speeds-built-attendance-dedicated.trycloudflare.com/api/tx",
+        "txmd5": "https://speeds-built-attendance-dedicated.trycloudflare.com/api/txmd5"
+    },
+    "Sunvip": {
+        "tx": "https://leader-analysis-wool-inspector.trycloudflare.com/api/tx",
+        "txmd5": "https://leader-analysis-wool-inspector.trycloudflare.com/api/txmd5"
+    },
+    "Hot789": {
+        "tx": "https://improve-museum-der-levy.trycloudflare.com/api/tx",
+        "txmd5": "https://improve-museum-der-levy.trycloudflare.com/api/txmd5"
+    },
+    "Ta28": {
+        "tx": "https://conversation-selling-slowly-bride.trycloudflare.com/api/tx",
+        "txmd5": "https://conversation-selling-slowly-bride.trycloudflare.com/api/txmd5"
+    }
+};
+
+
+// ============================================================
+// BIẾN TOÀN CỤ CHO POLLING
+// ============================================================
+const gamePredictors = {};
+const lastPhienMap = {};
+const allGameData = {};
+const allGamePredictions = {};
+const gameHistory = {};
+
 // ============================================================
 // CHỐNG NGỦ RENDER
 // ============================================================
@@ -1171,16 +1253,540 @@ class PredictorService {
 }
 
 // ============================================================
-// KHỞI TẠO PREDICTOR
+// KHỞI TẠO PREDICTOR CHO TỪNG GAME
 // ============================================================
+function getOrCreatePredictor(gameKey) {
+    if (!gamePredictors[gameKey]) {
+        gamePredictors[gameKey] = new PredictorService([]);
+    }
+    return gamePredictors[gameKey];
+}
+
+// ============================================================
+// HÀM GỌI API TỔNG QUÁT
+// ============================================================
+async function fetchAPI(url, timeout = 5000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json'
+            }
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        clearTimeout(timeoutId);
+        return null;
+    }
+}
+
+// ============================================================
+// HÀM CHUẨN HÓA DỮ LIỆU VÀ DỰ ĐOÁN - FULL THUẬT TOÁN
+// ============================================================
+function normalizeAndPredict(rawData, gameName, apiType, sourceUrl) {
+    if (!rawData) return null;
+
+    const phien = rawData.phien || rawData.Phien || rawData.id || null;
+    const x1 = rawData.xuc_xac_1 || rawData.Xuc_xac_1 || rawData.x1 || null;
+    const x2 = rawData.xuc_xac_2 || rawData.Xuc_xac_2 || rawData.x2 || null;
+    const x3 = rawData.xuc_xac_3 || rawData.Xuc_xac_3 || rawData.x3 || null;
+    let tong = rawData.tong || rawData.Tong || rawData.total || null;
+    let ketqua = rawData.ket_qua || rawData.Ket_qua || rawData.result || null;
+
+    if (x1 && x2 && x3 && tong === null) {
+        tong = parseInt(x1) + parseInt(x2) + parseInt(x3);
+    }
+
+    if (tong !== null && ketqua === null) {
+        ketqua = tong >= 11 ? "Tài" : "Xỉu";
+    }
+
+    if (ketqua) {
+        if (typeof ketqua === 'string') {
+            const lower = ketqua.toLowerCase();
+            if (lower.includes('tài') || lower === 't' || lower === 'tai') ketqua = "Tài";
+            else if (lower.includes('xỉu') || lower === 'x' || lower === 'xiu') ketqua = "Xỉu";
+            else if (ketqua === 'T') ketqua = "Tài";
+            else if (ketqua === 'X') ketqua = "Xỉu";
+        }
+    }
+
+    const gameKey = `${gameName}-${apiType}`;
+    const predictor = getOrCreatePredictor(gameKey);
+
+    let duDoan = null;
+    let confidence = 0;
+    let reason = "Chưa có dữ liệu để dự đoán";
+
+    if (phien && x1 && x2 && x3 && tong !== null && ketqua) {
+        const round = {
+            Phien: phien,
+            Xuc_xac_1: parseInt(x1),
+            Xuc_xac_2: parseInt(x2),
+            Xuc_xac_3: parseInt(x3),
+            Tong: tong,
+            Ket_qua: ketqua
+        };
+        
+        predictor.learn(round);
+        
+        try {
+            const predResult = predictor.predict();
+            duDoan = predResult.prediction;
+            confidence = predResult.confidence;
+            reason = predResult.reason;
+        } catch (e) {
+            if (tong !== null) {
+                duDoan = tong >= 11 ? "Tài" : "Xỉu";
+                confidence = 65;
+                reason = `Dự đoán theo tổng ${tong}`;
+            }
+        }
+    }
+
+    return {
+        game: gameName,
+        api_type: apiType,
+        source_url: sourceUrl,
+        Phien: phien || null,
+        Xuc_xac1: parseInt(x1) || 0,
+        Xuc_xac2: parseInt(x2) || 0,
+        Xuc_xac3: parseInt(x3) || 0,
+        Tong: tong || 0,
+        Ketqua: ketqua || "Chưa có",
+        Du_doan: duDoan || "Chưa đủ dữ liệu",
+        cre: CONFIG.CREATOR_ID,
+        meta: {
+            timestamp: nowStr(),
+            reason: reason || "Không có lý do",
+            confidence: confidence || 0
+        }
+    };
+}
+
+// ============================================================
+// ==================== POLLING ALL APIs ====================
+// ============================================================
+
+async function pollAllAPIs() {
+    console.log(`🔄 [${nowStr()}] Đang polling tất cả API...`);
+    
+    const allPromises = [];
+    const allTasks = [];
+    
+    for (const [gameName, config] of Object.entries(API_SOURCES)) {
+        for (const [apiType, url] of Object.entries(config)) {
+            allPromises.push(fetchAPI(url));
+            allTasks.push({ game: gameName, type: apiType, url: url });
+        }
+    }
+    
+    try {
+        const results = await Promise.allSettled(allPromises);
+        let successCount = 0;
+        let failCount = 0;
+        let newDataCount = 0;
+        
+        results.forEach((result, index) => {
+            const task = allTasks[index];
+            const key = `${task.game}-${task.type}`;
+            
+            if (result.status === 'fulfilled' && result.value) {
+                successCount++;
+                const rawData = result.value;
+                const phien = rawData.phien || rawData.Phien || rawData.id || null;
+                
+                if (phien && phien !== lastPhienMap[key]) {
+                    lastPhienMap[key] = phien;
+                    newDataCount++;
+                    
+                    const predResult = normalizeAndPredict(rawData, task.game, task.type, task.url);
+                    if (predResult) {
+                        allGameData[key] = rawData;
+                        allGamePredictions[key] = predResult;
+                        
+                        if (!gameHistory[key]) gameHistory[key] = [];
+                        gameHistory[key].push({
+                            phien: phien,
+                            data: rawData,
+                            prediction: predResult,
+                            timestamp: nowStr()
+                        });
+                        if (gameHistory[key].length > 100) gameHistory[key].shift();
+                        
+                        console.log(`✅ ${key}: Phiên ${phien} - ${predResult.Ketqua} - Dự đoán: ${predResult.Du_doan} (${predResult.meta.confidence}%)`);
+                    }
+                }
+            } else {
+                failCount++;
+                console.log(`❌ ${key}: Không lấy được dữ liệu`);
+            }
+        });
+        
+        console.log(`📊 Polling hoàn tất: ${successCount} thành công, ${failCount} thất bại, ${newDataCount} phiên mới`);
+        
+    } catch (error) {
+        console.error(`❌ Lỗi polling: ${error.message}`);
+    }
+}
+
+// Hàm lấy dữ liệu mới nhất từ cache
+function getLatestFromCache(gameName, apiType) {
+    const key = `${gameName}-${apiType}`;
+    return {
+        data: allGameData[key] || null,
+        prediction: allGamePredictions[key] || null,
+        history: gameHistory[key] || []
+    };
+}
+
+// ============================================================
+// EXPRESS ROUTES
+// ============================================================
+
+// Health check - ĐÃ CÓ Ở TRÊN, KHÔNG CẦN THÊM
+
+app.get('/predict', (req, res) => {
+    if (!latestRound || !latestPrediction) {
+        return res.json({
+            status: 'waiting',
+            message: 'Chưa có dữ liệu, đang chờ phiên mới...',
+            time: new Date().toISOString()
+        });
+    }
+
+    const exportObj = {
+        game: "sunwin",
+        api_type: "tx",
+        source_url: CONFIG.API_URL,
+        Phien: latestRound.Phien,
+        Xuc_xac1: latestRound.Xuc_xac_1,
+        Xuc_xac2: latestRound.Xuc_xac_2,
+        Xuc_xac3: latestRound.Xuc_xac_3,
+        Tong: latestRound.Tong,
+        Ketqua: latestRound.Ket_qua || 'Chưa có',
+        Du_doan: latestPrediction.prediction,
+        cre: CONFIG.CREATOR_ID,
+        meta: {
+            timestamp: new Date().toISOString(),
+            reason: latestPrediction.reason || 'Không có lý do',
+            confidence: latestPrediction.confidence || 0
+        }
+    };
+
+    res.json(exportObj);
+});
+
+app.get('/history', (req, res) => {
+    const history = predictor.history.slice(-30).map(h => ({
+        Phien: h.Phien,
+        Xuc_xac1: h.Xuc_xac_1,
+        Xuc_xac2: h.Xuc_xac_2,
+        Xuc_xac3: h.Xuc_xac_3,
+        Tong: h.Tong,
+        Ketqua: h.Ket_qua
+    }));
+    res.json({
+        total: predictor.history.length,
+        history: history
+    });
+});
+
+app.get('/all-predictions', (req, res) => {
+    const predictions = predictor.predHistory || [];
+    res.json({
+        total: predictions.length,
+        predictions: predictions.slice(-50)
+    });
+});
+
+// ============================================================
+// API LẤY DỮ LIỆU TỪ CACHE CỦA TẤT CẢ GAME
+// ============================================================
+app.get('/all-games-data', (req, res) => {
+    const result = {};
+    for (const [gameName, config] of Object.entries(API_SOURCES)) {
+        result[gameName] = {};
+        for (const [apiType, url] of Object.entries(config)) {
+            const cache = getLatestFromCache(gameName, apiType);
+            result[gameName][apiType] = {
+                url: url,
+                data: cache.data,
+                prediction: cache.prediction,
+                history: cache.history.slice(-20)
+            };
+        }
+    }
+    res.json({
+        timestamp: nowStr(),
+        games: result
+    });
+});
+
+// ============================================================
+// API LẤY DỰ ĐOÁN TỔNG HỢP TỪ CACHE
+// ============================================================
+app.get('/predict-all-cached', (req, res) => {
+    const predictions = [];
+    const details = [];
+    
+    for (const [gameName, config] of Object.entries(API_SOURCES)) {
+        for (const [apiType, url] of Object.entries(config)) {
+            const cache = getLatestFromCache(gameName, apiType);
+            if (cache.prediction) {
+                predictions.push(cache.prediction);
+                details.push(`${gameName}-${apiType}: ${cache.prediction.Du_doan} (${cache.prediction.meta.confidence}%)`);
+            }
+        }
+    }
+    
+    if (predictions.length === 0) {
+        return res.json({
+            status: 'waiting',
+            message: 'Chưa có dữ liệu dự đoán',
+            timestamp: nowStr()
+        });
+    }
+    
+    let taiCount = 0, xiuCount = 0;
+    predictions.forEach(p => {
+        if (p.Du_doan === "Tài") taiCount++;
+        else if (p.Du_doan === "Xỉu") xiuCount++;
+    });
+    
+    const total = predictions.length;
+    const taiRatio = taiCount / total;
+    const xiuRatio = xiuCount / total;
+    const confidence = Math.round(Math.max(taiRatio, xiuRatio) * 100);
+    const finalPred = taiRatio >= xiuRatio ? "Tài" : "Xỉu";
+    
+    res.json({
+        status: 'success',
+        timestamp: nowStr(),
+        summary: {
+            total_sources: total,
+            tai_count: taiCount,
+            xiu_count: xiuCount,
+            prediction: finalPred,
+            confidence: confidence,
+            details: details
+        },
+        predictions: predictions
+    });
+});
+
+// ============================================================
+// TẠO ENDPOINT ĐỘNG CHO TỪNG GAME (LẤY TỪ CACHE + FULL THUẬT TOÁN)
+// ============================================================
+for (const [gameName, config] of Object.entries(API_SOURCES)) {
+    for (const [apiType, url] of Object.entries(config)) {
+        const routePath = `/${apiType}${gameName}`;
+        app.get(routePath, async (req, res) => {
+            const cache = getLatestFromCache(gameName, apiType);
+            
+            if (cache.prediction) {
+                const pred = cache.prediction;
+                const exportObj = {
+                    game: pred.game,
+                    api_type: pred.api_type,
+                    source_url: pred.source_url,
+                    Phien: pred.Phien,
+                    Xuc_xac1: pred.Xuc_xac1,
+                    Xuc_xac2: pred.Xuc_xac2,
+                    Xuc_xac3: pred.Xuc_xac3,
+                    Tong: pred.Tong,
+                    Ketqua: pred.Ketqua,
+                    Du_doan: pred.Du_doan,
+                    cre: pred.cre,
+                    meta: pred.meta
+                };
+                return res.json(exportObj);
+            }
+            
+            try {
+                const rawData = await fetchAPI(url);
+                if (!rawData) {
+                    return res.status(503).json({
+                        error: `Không thể lấy dữ liệu từ API của game "${gameName}" (${apiType})`,
+                        api_url: url
+                    });
+                }
+                
+                const result = normalizeAndPredict(rawData, gameName, apiType, url);
+                if (!result) {
+                    return res.status(500).json({
+                        error: `Không thể xử lý dữ liệu từ game "${gameName}"`,
+                        api_url: url
+                    });
+                }
+                
+                const exportObj = {
+                    game: result.game,
+                    api_type: result.api_type,
+                    source_url: result.source_url,
+                    Phien: result.Phien,
+                    Xuc_xac1: result.Xuc_xac1,
+                    Xuc_xac2: result.Xuc_xac2,
+                    Xuc_xac3: result.Xuc_xac3,
+                    Tong: result.Tong,
+                    Ketqua: result.Ketqua,
+                    Du_doan: result.Du_doan,
+                    cre: result.cre,
+                    meta: result.meta
+                };
+                
+                res.json(exportObj);
+            } catch (error) {
+                res.status(500).json({
+                    error: `Lỗi khi xử lý dữ liệu từ game "${gameName}"`,
+                    detail: error.message
+                });
+            }
+        });
+        console.log(`✅ Route created: ${routePath} (full algorithm)`);
+    }
+}
+
+// ============================================================
+// ROUTE DỰ ĐOÁN TỔNG HỢP (CÓ GỌI API MỚI)
+// ============================================================
+app.get('/predict-all', async (req, res) => {
+    const gameFilter = req.query.games ? req.query.games.split(',') : Object.keys(API_SOURCES);
+    const typeFilter = req.query.types ? req.query.types.split(',') : ['tx', 'txmd5'];
+
+    const fetchPromises = [];
+    const fetchTasks = [];
+
+    for (const gameName of gameFilter) {
+        const config = API_SOURCES[gameName];
+        if (!config) continue;
+        for (const apiType of typeFilter) {
+            const url = config[apiType];
+            if (url) {
+                fetchPromises.push(fetchAPI(url));
+                fetchTasks.push({ game: gameName, type: apiType, url: url });
+            }
+        }
+    }
+
+    if (fetchPromises.length === 0) {
+        return res.json({
+            status: 'error',
+            message: 'Không có API nào được chọn để dự đoán',
+            available_games: Object.keys(API_SOURCES)
+        });
+    }
+
+    try {
+        const results = await Promise.allSettled(fetchPromises);
+        const predictions = [];
+
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value) {
+                const task = fetchTasks[index];
+                const pred = normalizeAndPredict(result.value, task.game, task.type, task.url);
+                if (pred) {
+                    predictions.push(pred);
+                }
+            }
+        });
+
+        let taiCount = 0, xiuCount = 0;
+        const details = [];
+        predictions.forEach(p => {
+            if (p.Du_doan === "Tài") taiCount++;
+            else if (p.Du_doan === "Xỉu") xiuCount++;
+            details.push(`${p.game}-${p.api_type}: ${p.Du_doan} (${p.meta.confidence}%)`);
+        });
+
+        const total = predictions.length;
+        const taiRatio = taiCount / total;
+        const xiuRatio = xiuCount / total;
+        const confidence = Math.round(Math.max(taiRatio, xiuRatio) * 100);
+        const finalPred = taiRatio >= xiuRatio ? "Tài" : "Xỉu";
+
+        res.json({
+            status: 'success',
+            timestamp: nowStr(),
+            summary: {
+                total_sources: total,
+                tai_count: taiCount,
+                xiu_count: xiuCount,
+                prediction: finalPred,
+                confidence: confidence,
+                details: details
+            },
+            predictions: predictions
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            message: 'Lỗi khi xử lý dự đoán',
+            detail: error.message
+        });
+    }
+});
+
+// ============================================================
+// GỌI API CHÍNH (SUNWIN) - ĐÃ CÓ Ở TRÊN, KHÔNG CẦN THÊM
+
+// ============================================================
+// START
+// ============================================================
+console.log('🚀 Multi-API Predictor with Polling - Full Algorithm started');
+console.log(`📡 API: ${CONFIG.API_URL}`);
+console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
+console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
+console.log(`📊 Endpoints:`);
+console.log(`   /                    - Health check`);
+console.log(`   /predict             - Dự đoán mới nhất (sunwin)`);
+console.log(`   /predict-all         - Dự đoán tổng hợp (gọi API mới)`);
+console.log(`   /predict-all-cached  - Dự đoán tổng hợp (từ cache)`);
+console.log(`   /all-games-data      - Dữ liệu cache tất cả game`);
+console.log(`   /history             - Lịch sử 30 phiên`);
+console.log(`   /all-predictions     - Tất cả dự đoán đã lưu`);
+console.log(`   /{apiType}{gameName} - API từng game (VD: /txsunwin)`);
+console.log('─────────────────────────────');
+console.log('📚 PATTERN DB loaded: ' + Object.keys(PATTERN_DB).length + ' patterns');
+console.log('🧠 Combined algorithms: 25+ algorithms');
+console.log(`📌 Đã tích hợp ${Object.keys(API_SOURCES).length} game API`);
+
+// Khởi tạo predictor cho sunwin
 let predictor = new PredictorService([]);
 let lastPhien = null;
 let isProcessing = false;
 let latestRound = null;
 let latestPrediction = null;
 
+// Khởi động polling tất cả API
+setTimeout(async () => {
+    await pollAllAPIs();
+}, 2000);
+
+// Polling định kỳ
+setInterval(async () => {
+    await pollAllAPIs();
+}, CONFIG.POLL_INTERVAL);
+
+// Polling API chính (sunwin) cho /predict
+setTimeout(fetchAndPredict, 1000);
+setInterval(fetchAndPredict, CONFIG.POLL_INTERVAL);
+
+app.listen(PORT, () => {
+    console.log(`✅ Web server running on port ${PORT}`);
+    console.log(`💓 Keep-alive will ping every 5 minutes`);
+});
+
+process.stdin.resume();
+
 // ============================================================
-// GỌI API
+// HÀM FETCH_AND_PREDICT CHO SUNWIN
 // ============================================================
 async function fetchAndPredict() {
     if (isProcessing) return;
@@ -1229,98 +1835,3 @@ async function fetchAndPredict() {
 
     isProcessing = false;
 }
-
-// ============================================================
-// EXPRESS ROUTES
-// ============================================================
-
-// Health check
-app.get('/', (req, res) => {
-    res.json({
-        status: 'running',
-        message: 'API Predictor is running',
-        time: new Date().toISOString(),
-        keepAlive: keepAliveCount
-    });
-});
-
-// Endpoint lấy dự đoán mới nhất
-app.get('/predict', (req, res) => {
-    if (!latestRound || !latestPrediction) {
-        return res.json({
-            status: 'waiting',
-            message: 'Chưa có dữ liệu, đang chờ phiên mới...',
-            time: new Date().toISOString()
-        });
-    }
-
-    const exportObj = {
-        Phien: latestRound.Phien,
-        Xuc_xac1: latestRound.Xuc_xac_1,
-        Xuc_xac2: latestRound.Xuc_xac_2,
-        Xuc_xac3: latestRound.Xuc_xac_3,
-        Tong: latestRound.Tong,
-        Ketqua: latestRound.Ket_qua || 'Chưa có',
-        Du_doan: latestPrediction.prediction || null,
-        cre: CONFIG.CREATOR_ID,
-        meta: {
-            timestamp: new Date().toISOString(),
-            reason: latestPrediction.reason || 'Không có lý do',
-            confidence: latestPrediction.confidence || 0
-        }
-    };
-
-    res.json(exportObj);
-});
-
-// Endpoint lấy lịch sử
-app.get('/history', (req, res) => {
-    const history = predictor.history.slice(-30).map(h => ({
-        Phien: h.Phien,
-        Xuc_xac1: h.Xuc_xac_1,
-        Xuc_xac2: h.Xuc_xac_2,
-        Xuc_xac3: h.Xuc_xac_3,
-        Tong: h.Tong,
-        Ketqua: h.Ket_qua
-    }));
-    res.json({
-        total: predictor.history.length,
-        history: history
-    });
-});
-
-// Endpoint lấy tất cả dự đoán đã lưu
-app.get('/all-predictions', (req, res) => {
-    const predictions = predictor.predHistory || [];
-    res.json({
-        total: predictions.length,
-        predictions: predictions.slice(-50)
-    });
-});
-
-// ============================================================
-// START
-// ============================================================
-console.log('🚀 API Predictor started');
-console.log(`📡 API: ${CONFIG.API_URL}`);
-console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
-console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
-console.log(`📊 Endpoints:`);
-console.log(`   /              - Health check`);
-console.log(`   /predict       - Dự đoán mới nhất`);
-console.log(`   /history       - Lịch sử 30 phiên`);
-console.log(`   /all-predictions - Tất cả dự đoán đã lưu`);
-console.log('─────────────────────────────');
-console.log('📚 PATTERN DB loaded: ' + Object.keys(PATTERN_DB).length + ' patterns');
-
-// Chạy polling
-setTimeout(fetchAndPredict, 1000);
-setInterval(fetchAndPredict, CONFIG.POLL_INTERVAL);
-
-// Start server
-app.listen(PORT, () => {
-    console.log(`✅ Web server running on port ${PORT}`);
-    console.log(`💓 Keep-alive will ping every 5 minutes`);
-});
-
-process.stdin.resume();

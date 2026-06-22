@@ -344,7 +344,29 @@ const PATTERN_DB = {
     "XXXXXXX": { "prediction": "Tài", "confidence": 83 }
 };
 
-
+// ============================================================
+// PREDICT BY PATTERN DB
+// ============================================================
+function predictByPatternDB(seq) {
+    if (!seq || seq.length < 2) return { matched: false };
+    
+    const pattern = seq.join('');
+    const maxLen = Math.min(pattern.length, 10);
+    
+    for (let len = maxLen; len >= 2; len--) {
+        const subPattern = pattern.slice(-len);
+        if (PATTERN_DB[subPattern]) {
+            const result = PATTERN_DB[subPattern];
+            return {
+                matched: true,
+                prediction: result.prediction === 'Tài' ? 'T' : 'X',
+                confidence: result.confidence / 100,
+                reason: `📊 Pattern DB: '${subPattern}' → ${result.prediction} (${result.confidence}%)`
+            };
+        }
+    }
+    return { matched: false };
+}
 
 // ============================================================
 // MANUAL PATTERNS
@@ -564,6 +586,174 @@ function matchManualPattern(totals) {
         if (match) return { pred: pat.pred, note: pat.note, source: 'manual' };
     }
     return null;
+}
+
+// ============================================================
+// ENSEMBLE CLASS
+// ============================================================
+class Ensemble {
+    constructor() {
+        this.models = {
+            markov: new MarkovModel(),
+            run_length: new RunLengthModel(),
+            momentum: new MomentumModel(),
+            pattern: new PatternModel()
+        };
+        this.weights = {};
+        CONFIG.MODELS.forEach(m => this.weights[m] = 1 / CONFIG.MODELS.length);
+        this.history = [];
+    }
+
+    trainAll(seq) {
+        this.history = seq;
+        Object.values(this.models).forEach(m => m.train(seq));
+    }
+
+    predictProba(seq) {
+        const probas = {};
+        const distributions = {};
+        let totalWeight = 0;
+
+        CONFIG.MODELS.forEach(name => {
+            const m = this.models[name];
+            if (m && typeof m.predict === 'function') {
+                const p = m.predict(seq);
+                probas[name] = p;
+                distributions[name] = p;
+                totalWeight += this.weights[name] || 0;
+            }
+        });
+
+        const distribution = { T: 0, X: 0 };
+        CONFIG.MODELS.forEach(name => {
+            if (probas[name]) {
+                const w = (this.weights[name] || 0) / (totalWeight || 1);
+                distribution.T += w * (probas[name].T || 0);
+                distribution.X += w * (probas[name].X || 0);
+            }
+        });
+
+        const norm = distribution.T + distribution.X || 1;
+        distribution.T /= norm;
+        distribution.X /= norm;
+
+        return {
+            distribution,
+            modelProbas: probas,
+            modelDistributions: distributions
+        };
+    }
+
+    updateWeights(seq, actual) {
+        CONFIG.MODELS.forEach(name => {
+            const m = this.models[name];
+            if (m && typeof m.predict === 'function') {
+                const p = m.predict(seq);
+                const prob = p[actual] || 0.5;
+                const error = 1 - prob;
+                this.weights[name] = Math.max(0.05, (this.weights[name] || 0.2) * (1 - error * 0.1));
+            }
+        });
+        // Normalize
+        const sum = Object.values(this.weights).reduce((a, b) => a + b, 0);
+        if (sum > 0) {
+            CONFIG.MODELS.forEach(name => {
+                this.weights[name] = (this.weights[name] || 0) / sum;
+            });
+        }
+    }
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+class MarkovModel {
+    constructor() {
+        this.transitions = {};
+        this.order = CONFIG.MARKOV_ORDER || 3;
+    }
+
+    train(seq) {
+        this.transitions = {};
+        for (let i = 0; i < seq.length - this.order; i++) {
+            const state = seq.slice(i, i + this.order).join('');
+            const next = seq[i + this.order];
+            if (!this.transitions[state]) this.transitions[state] = { T: 0, X: 0 };
+            this.transitions[state][next]++;
+        }
+    }
+
+    predict(seq) {
+        if (seq.length < this.order) return { T: 0.5, X: 0.5 };
+        const state = seq.slice(-this.order).join('');
+        const trans = this.transitions[state];
+        if (!trans) return { T: 0.5, X: 0.5 };
+        const total = trans.T + trans.X;
+        if (total === 0) return { T: 0.5, X: 0.5 };
+        return { T: trans.T / total, X: trans.X / total };
+    }
+}
+
+class RunLengthModel {
+    train(seq) { this.seq = seq; }
+
+    predict(seq) {
+        if (seq.length < 2) return { T: 0.5, X: 0.5 };
+        const run = computeRunLength(seq);
+        const prob = Math.min(0.8, 0.5 + run.run * 0.05);
+        if (run.value === 'T') return { T: prob, X: 1 - prob };
+        if (run.value === 'X') return { T: 1 - prob, X: prob };
+        return { T: 0.5, X: 0.5 };
+    }
+}
+
+class MomentumModel {
+    train(seq) { this.seq = seq; }
+
+    predict(seq) {
+        if (seq.length < 3) return { T: 0.5, X: 0.5 };
+        const last3 = seq.slice(-3);
+        const tCount = last3.filter(x => x === 'T').length;
+        const xCount = last3.filter(x => x === 'X').length;
+        const momentum = (tCount - xCount) / 3;
+        const probT = 0.5 + momentum * 0.3;
+        return { T: Math.max(0.1, Math.min(0.9, probT)), X: Math.max(0.1, Math.min(0.9, 1 - probT)) };
+    }
+}
+
+class PatternModel {
+    train(seq) { this.seq = seq; }
+
+    detectPattern(seq) {
+        const s = seq.join('');
+        const patterns = [
+            { type: '1-1', regex: /(?:TX)+$|(?:XT)+$/ },
+            { type: '2-2', regex: /(?:TTXX)+$|(?:XXTT)+$/ },
+            { type: '3-3', regex: /(?:TTTXXX)+$|(?:XXXTTT)+$/ }
+        ];
+        for (let p of patterns) {
+            if (p.regex.test(s)) {
+                return { type: p.type, strength: 0.8 };
+            }
+        }
+        return { type: 'none', strength: 0 };
+    }
+
+    predict(seq) {
+        if (seq.length < 4) return { T: 0.5, X: 0.5 };
+        const pattern = this.detectPattern(seq);
+        if (pattern.type !== 'none') {
+            const last = seq[seq.length - 1];
+            const next = last === 'T' ? 'X' : 'T';
+            return next === 'T' ? { T: 0.7, X: 0.3 } : { T: 0.3, X: 0.7 };
+        }
+        // Pattern DB lookup
+        const dbResult = predictByPatternDB(seq);
+        if (dbResult.matched) {
+            return dbResult.prediction === 'T' ? { T: 0.7 + dbResult.confidence * 0.2, X: 0.3 - dbResult.confidence * 0.2 } : { T: 0.3 - dbResult.confidence * 0.2, X: 0.7 + dbResult.confidence * 0.2 };
+        }
+        return { T: 0.5, X: 0.5 };
+    }
 }
 
 // ============================================================
@@ -966,6 +1156,17 @@ class PredictorService {
         const seqBefore = seqFromHistory(this.history.slice(0, -1));
         const actual = actualRound.Ket_qua ? (actualRound.Ket_qua === 'Tài' ? 'T' : 'X') : (actualRound.ket_qua ? (actualRound.ket_qua === 'Tài' ? 'T' : 'X') : 'X');
         this.ensemble.updateWeights(seqBefore, actual);
+        // Update predHistory
+        try {
+            const pred = this.predict();
+            this.predHistory.push({
+                phien: actualRound.Phien,
+                prediction: pred.prediction,
+                confidence: pred.confidence,
+                timestamp: nowStr()
+            });
+            if (this.predHistory.length > 100) this.predHistory.shift();
+        } catch(e) { /* ignore */ }
     }
 }
 

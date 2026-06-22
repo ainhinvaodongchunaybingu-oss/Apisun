@@ -23,7 +23,7 @@ app.use((req, res, next) => {
 // CẤU HÌNH
 // ============================================================
 const CONFIG = {
-    API_URL: 'http://103.249.116.192:1001/api/ditmemaysun',
+    API_URL: 'https://trails-wish-motel-legacy.trycloudflare.com/api/tx',
     POLL_INTERVAL: 3000, // 3 giây
     HISTORY_KEY: "sun_predict_history_v1",
     PATTERN_MEM_KEY: "sun_predict_pattern_mem_v1",

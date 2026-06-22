@@ -1061,7 +1061,7 @@ function matchManualPattern(totals) {
 }
 
 // ============================================================
-// HÀM TỔNG HỢP TẤT CẢ THUẬT TOÁN
+// HÀM TỔNG HỢP TẤT CẢ THUẬT TOÁN - KHÔNG TÍNH TỔNG ĐIỂM
 // ============================================================
 function predictAll(seq, totals, xx_list) {
     const allResults = [];
@@ -1266,23 +1266,7 @@ function predictAll(seq, totals, xx_list) {
         }
     }
 
-    // 29. Tổng điểm
-    if (totals.length > 0) {
-        const last = totals[totals.length - 1];
-        let conf = 0, pred = 'T', name = '';
-        if (last >= 16) { conf = randomInt(85, 98); pred = 'T'; name = `Tổng ${last} ≥16`; }
-        else if (last >= 13) { conf = randomInt(75, 90); pred = 'T'; name = `Tổng ${last} ≥13`; }
-        else if (last >= 11) { conf = randomInt(65, 85); pred = 'T'; name = `Tổng ${last} ≥11`; }
-        else if (last <= 6) { conf = randomInt(85, 98); pred = 'X'; name = `Tổng ${last} ≤6`; }
-        else if (last <= 8) { conf = randomInt(75, 90); pred = 'X'; name = `Tổng ${last} ≤8`; }
-        else if (last <= 10) { conf = randomInt(65, 85); pred = 'X'; name = `Tổng ${last} ≤10`; }
-        if (conf > 0) {
-            allResults.push({ pred: pred, conf: conf, name: name });
-            details.push(`${name}: ${pred === 'T' ? 'Tài' : 'Xỉu'} (${conf}%)`);
-        }
-    }
-
-    // 30. 3 xúc xắc giống nhau
+    // 29. 3 xúc xắc giống nhau
     if (xx_list && xx_list.length === 3) {
         if (xx_list[0] === xx_list[1] && xx_list[1] === xx_list[2]) {
             const so = xx_list[0];
@@ -1296,7 +1280,7 @@ function predictAll(seq, totals, xx_list) {
         }
     }
 
-    // 31. Break Signals
+    // 30. Break Signals
     const breakCount = countBreakSignals(seq);
     if (breakCount >= 3) {
         const last = seq[seq.length - 1];
@@ -1306,16 +1290,27 @@ function predictAll(seq, totals, xx_list) {
         details.push(`Break Signals: ${pred === 'T' ? 'Tài' : 'Xỉu'} (${conf}%) - ${breakCount} tín hiệu`);
     }
 
-    // Tính tổng số lượng và trả về kết quả
+    // Đếm số lượng
     const countTai = allResults.filter(r => r.pred === 'T').length;
     const countXiu = allResults.filter(r => r.pred === 'X').length;
 
+    // Tìm dự đoán có conf cao nhất
+    let bestPred = 'T';
+    let bestConf = 0;
+    for (const r of allResults) {
+        if (r.conf > bestConf) {
+            bestConf = r.conf;
+            bestPred = r.pred;
+        }
+    }
+
     return {
+        prediction: bestPred === 'T' ? 'Tài' : 'Xỉu',
+        confidence: Math.min(bestConf, 99),
         totalAlgorithms: allResults.length,
         countTai: countTai,
         countXiu: countXiu,
-        details: details.slice(0, 15),
-        allResults: allResults
+        details: details.slice(0, 15)
     };
 }
 
@@ -1387,19 +1382,9 @@ class PredictorService {
 
                 const result = predictAll(seq, totals, xx_list);
 
-                // Tìm dự đoán có conf cao nhất
-                let bestPred = 'T';
-                let bestConf = 0;
-                for (const r of result.allResults) {
-                    if (r.conf > bestConf) {
-                        bestConf = r.conf;
-                        bestPred = r.pred;
-                    }
-                }
-
                 this.latestPrediction = {
-                    prediction: bestPred === 'T' ? 'Tài' : 'Xỉu',
-                    confidence: Math.min(bestConf, 99),
+                    prediction: result.prediction,
+                    confidence: result.confidence,
                     details: result.details,
                     totalAlgorithms: result.totalAlgorithms,
                     countTai: result.countTai,
@@ -1423,7 +1408,7 @@ const predictor = new PredictorService();
 app.get('/', (req, res) => {
     res.json({
         status: 'running',
-        message: 'API Predictor - 50+ Algorithms',
+        message: 'API Predictor - 50+ Algorithms - Không tính tổng điểm',
         time: new Date().toISOString(),
         keepAlive: keepAliveCount
     });
@@ -1478,7 +1463,7 @@ app.get('/history', (req, res) => {
 // ============================================================
 // START
 // ============================================================
-console.log('🚀 API Predictor - 50+ Algorithms');
+console.log('🚀 API Predictor - 50+ Algorithms - Không tính tổng điểm');
 console.log(`📡 API: ${CONFIG.API_URL}`);
 console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
 console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);
@@ -1503,8 +1488,6 @@ console.log('   10. CHỈ BÁO KỸ THUẬT (7 loại)');
 console.log('   11. MACHINE LEARNING (7 loại)');
 console.log('   12. PATTERN DETECTORS (10 loại)');
 console.log('   13. TÍN HIỆU BẺ CẦU (8 loại)');
-console.log('   14. TỔNG ĐIỂM');
-console.log('   15. 3 XÚC XẮC GIỐNG NHAU');
 console.log('─────────────────────────────');
 console.log(`🧠 TỔNG CỘNG: 50+ thuật toán`);
 

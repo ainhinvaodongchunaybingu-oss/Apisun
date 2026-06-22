@@ -1,5 +1,5 @@
 // ============================================================
-// api_predict_render.js - FULL 50+ THUẬT TOÁN - KHÔNG TÍNH TỔNG
+// api_predict_render.js - FULL 50+ THUẬT TOÁN - TÍNH THEO SỐ LƯỢNG
 // ============================================================
 
 const express = require('express');
@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 // CẤU HÌNH
 // ============================================================
 const CONFIG = {
-    API_URL: 'https://trails-wish-motel-legacy.trycloudflare.com/api/tx',
+    API_URL: 'http://103.249.116.192:1001/api/ditmemaysun',
     POLL_INTERVAL: 3000,
     CREATOR_ID: '@bucactaodi'
 };
@@ -1061,7 +1061,7 @@ function matchManualPattern(totals) {
 }
 
 // ============================================================
-// HÀM TỔNG HỢP TẤT CẢ THUẬT TOÁN - KHÔNG TÍNH TỔNG ĐIỂM
+// HÀM TỔNG HỢP TẤT CẢ THUẬT TOÁN - THEO SỐ LƯỢNG + TỔNG ĐỘ TIN CẬY
 // ============================================================
 function predictAll(seq, totals, xx_list) {
     const allResults = [];
@@ -1290,24 +1290,70 @@ function predictAll(seq, totals, xx_list) {
         details.push(`Break Signals: ${pred === 'T' ? 'Tài' : 'Xỉu'} (${conf}%) - ${breakCount} tín hiệu`);
     }
 
-    // Đếm số lượng
-    const countTai = allResults.filter(r => r.pred === 'T').length;
-    const countXiu = allResults.filter(r => r.pred === 'X').length;
+    // ============================================================
+    // TÍNH DỰ ĐOÁN THEO SỐ LƯỢNG THUẬT TOÁN
+    // ============================================================
+    
+    // Đếm số lượng thuật toán dự đoán Tài và Xỉu
+    const taiResults = allResults.filter(r => r.pred === 'T');
+    const xiuResults = allResults.filter(r => r.pred === 'X');
+    
+    const countTai = taiResults.length;
+    const countXiu = xiuResults.length;
+    const total = allResults.length;
 
-    // Tìm dự đoán có conf cao nhất
-    let bestPred = 'T';
-    let bestConf = 0;
-    for (const r of allResults) {
-        if (r.conf > bestConf) {
-            bestConf = r.conf;
-            bestPred = r.pred;
+    // Dự đoán theo số lượng (bên nào nhiều hơn)
+    let finalPred = 'T';
+    let finalConf = 50;
+    let detailsMessage = '';
+
+    if (countTai > countXiu) {
+        finalPred = 'T';
+        // Tính tổng độ tin cậy của tất cả thuật toán dự đoán Tài
+        let totalTaiConf = 0;
+        for (const r of taiResults) {
+            totalTaiConf += r.conf;
+        }
+        // Độ tin cậy = trung bình cộng
+        finalConf = Math.round(totalTaiConf / countTai);
+        detailsMessage = `${countTai} thuật toán dự đoán Tài (trung bình ${finalConf}%)`;
+    } else if (countXiu > countTai) {
+        finalPred = 'X';
+        // Tính tổng độ tin cậy của tất cả thuật toán dự đoán Xỉu
+        let totalXiuConf = 0;
+        for (const r of xiuResults) {
+            totalXiuConf += r.conf;
+        }
+        // Độ tin cậy = trung bình cộng
+        finalConf = Math.round(totalXiuConf / countXiu);
+        detailsMessage = `${countXiu} thuật toán dự đoán Xỉu (trung bình ${finalConf}%)`;
+    } else {
+        // Nếu số lượng bằng nhau, dùng tổng độ tin cậy để phân định
+        let totalTaiConf = 0, totalXiuConf = 0;
+        for (const r of taiResults) totalTaiConf += r.conf;
+        for (const r of xiuResults) totalXiuConf += r.conf;
+        
+        if (totalTaiConf > totalXiuConf) {
+            finalPred = 'T';
+            finalConf = Math.round(totalTaiConf / countTai);
+            detailsMessage = `Hòa ${countTai}-${countXiu}, Tài có tổng độ tin cậy cao hơn (${Math.round(totalTaiConf)}%)`;
+        } else {
+            finalPred = 'X';
+            finalConf = Math.round(totalXiuConf / countXiu);
+            detailsMessage = `Hòa ${countTai}-${countXiu}, Xỉu có tổng độ tin cậy cao hơn (${Math.round(totalXiuConf)}%)`;
         }
     }
 
+    // Đảm bảo confidence không vượt quá 99%
+    finalConf = Math.min(finalConf, 99);
+
+    // Thêm thông tin vào details
+    details.push(`📊 Kết quả: ${countTai}T - ${countXiu}X | ${detailsMessage}`);
+
     return {
-        prediction: bestPred === 'T' ? 'Tài' : 'Xỉu',
-        confidence: Math.min(bestConf, 99),
-        totalAlgorithms: allResults.length,
+        prediction: finalPred === 'T' ? 'Tài' : 'Xỉu',
+        confidence: finalConf,
+        totalAlgorithms: total,
         countTai: countTai,
         countXiu: countXiu,
         details: details.slice(0, 15)
@@ -1408,7 +1454,7 @@ const predictor = new PredictorService();
 app.get('/', (req, res) => {
     res.json({
         status: 'running',
-        message: 'API Predictor - 50+ Algorithms - Không tính tổng điểm',
+        message: 'API Predictor - 50+ Algorithms - Theo số lượng',
         time: new Date().toISOString(),
         keepAlive: keepAliveCount
     });
@@ -1463,7 +1509,7 @@ app.get('/history', (req, res) => {
 // ============================================================
 // START
 // ============================================================
-console.log('🚀 API Predictor - 50+ Algorithms - Không tính tổng điểm');
+console.log('🚀 API Predictor - 50+ Algorithms - Theo số lượng');
 console.log(`📡 API: ${CONFIG.API_URL}`);
 console.log(`⏱️ Poll interval: ${CONFIG.POLL_INTERVAL}ms`);
 console.log(`👤 Creator: ${CONFIG.CREATOR_ID}`);

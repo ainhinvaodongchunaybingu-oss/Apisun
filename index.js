@@ -98,7 +98,7 @@ const API_SOURCES = {
 };
 
 // ============================================================
-// PATTERN DATABASE
+// PATTERN DATABASE (THUẬT TOÁN 1)
 // ============================================================
 const PATTERN_DB = {
   "TXT": { "prediction": "Xỉu", "confidence": 68 },
@@ -353,7 +353,31 @@ const PATTERN_DB = {
 };
 
 // ============================================================
-// MANUAL PATTERNS (THUẬT TOÁN 2)
+// THUẬT TOÁN 1: PATTERN DB
+// ============================================================
+function predictByPatternDB(seq) {
+    if (!seq || seq.length < 2) return { matched: false, prediction: null, confidence: 0, reason: 'Chưa đủ dữ liệu' };
+    
+    const pattern = seq.join('');
+    const maxLen = Math.min(pattern.length, 10);
+    
+    for (let len = maxLen; len >= 2; len--) {
+        const subPattern = pattern.slice(-len);
+        if (PATTERN_DB[subPattern]) {
+            const result = PATTERN_DB[subPattern];
+            return {
+                matched: true,
+                prediction: result.prediction === 'Tài' ? 'T' : 'X',
+                confidence: result.confidence,
+                reason: `📊 Pattern "${subPattern}" → ${result.prediction} (${result.confidence}%)`
+            };
+        }
+    }
+    return { matched: false, prediction: null, confidence: 0, reason: 'N/A' };
+}
+
+// ============================================================
+// THUẬT TOÁN 2: MANUAL PATTERNS
 // ============================================================
 const MANUAL_PATTERNS = [
     { pair: [15, 6], pred: 'T', note: '15 6 → Tài' },
@@ -556,33 +580,6 @@ const MANUAL_PATTERNS = [
     { pair: [15, 13], pred: 'X', note: '15 13 → Xỉu' },
 ];
 
-// ============================================================
-// THUẬT TOÁN 1: PATTERN DB
-// ============================================================
-function predictByPatternDB(seq) {
-    if (!seq || seq.length < 2) return { matched: false, prediction: null, confidence: 0, reason: 'Chưa đủ dữ liệu' };
-    
-    const pattern = seq.join('');
-    const maxLen = Math.min(pattern.length, 10);
-    
-    for (let len = maxLen; len >= 2; len--) {
-        const subPattern = pattern.slice(-len);
-        if (PATTERN_DB[subPattern]) {
-            const result = PATTERN_DB[subPattern];
-            return {
-                matched: true,
-                prediction: result.prediction === 'Tài' ? 'T' : 'X',
-                confidence: result.confidence,
-                reason: `📊 Pattern "${subPattern}" → ${result.prediction} (${result.confidence}%)`
-            };
-        }
-    }
-    return { matched: false, prediction: null, confidence: 0, reason: 'N/A' };
-}
-
-// ============================================================
-// THUẬT TOÁN 2: MANUAL PATTERNS
-// ============================================================
 function matchManualPattern(totals) {
     if (!totals || totals.length === 0) return null;
     
@@ -818,29 +815,6 @@ function classifyRoad(seq) {
     return 'mixed';
 }
 
-function last(arr, n) { return arr.slice(-n); }
-function counts(arr) {
-    const c = { T: 0, X: 0 };
-    for (const x of arr) if (x === 'T') c.T++; else if (x === 'X') c.X++;
-    return c;
-}
-function computeRunLength(seq) {
-    if (!seq || seq.length === 0) return { run: 0, char: null };
-    let run = 1, char = seq[seq.length - 1];
-    for (let i = seq.length - 2; i >= 0; i--) {
-        if (seq[i] === char) run++;
-        else break;
-    }
-    return { run, char };
-}
-
-// ============================================================
-// THUẬT TOÁN 4: COMBINED PREDICT - PLACEHOLDER
-// ============================================================
-function predictCombined(history) {
-    return { prediction: null, confidence: 0, reason: 'Module combinedPredict chưa cấu hình' };
-}
-
 // ============================================================
 // HÀM DỰ ĐOÁN TỔNG HỢP 4 THUẬT TOÁN
 // ============================================================
@@ -853,34 +827,39 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
     }));
 
     // ===== ALGO 1: PATTERN DB =====
-    const dbResult = predictByPatternDB(data_kq);
-    results.pattern_db = {
-        name: 'pattern_db',
-        prediction: dbResult.prediction === 'T' ? 'Tài' : (dbResult.prediction === 'X' ? 'Xỉu' : null),
-        Dotincay: dbResult.confidence || 0,
-        Lydo: dbResult.reason || 'N/A'
-    };
+    try {
+        const dbResult = predictByPatternDB(data_kq);
+        results.pattern_db = {
+            name: 'pattern_db',
+            prediction: dbResult.prediction === 'T' ? 'Tài' : (dbResult.prediction === 'X' ? 'Xỉu' : null),
+            Dotincay: typeof dbResult.confidence === 'number' ? dbResult.confidence : 0,
+            Lydo: dbResult.reason || 'N/A'
+        };
+    } catch (e) {
+        results.pattern_db = { name: 'pattern_db', prediction: null, Dotincay: 0, Lydo: 'Lỗi: ' + e.message };
+    }
 
     // ===== ALGO 2: MANUAL PATTERNS =====
-    const manualResult = matchManualPattern(totals);
-    results.manual = {
-        name: 'manual',
-        prediction: manualResult ? (manualResult.pred === 'T' ? 'Tài' : 'Xỉu') : null,
-        Dotincay: manualResult ? manualResult.confidence : 0,
-        Lydo: manualResult ? manualResult.reason : 'N/A'
-    };
+    try {
+        const manualResult = matchManualPattern(totals);
+        results.manual = {
+            name: 'manual',
+            prediction: manualResult ? (manualResult.pred === 'T' ? 'Tài' : 'Xỉu') : null,
+            Dotincay: manualResult ? (typeof manualResult.confidence === 'number' ? manualResult.confidence : 0) : 0,
+            Lydo: manualResult ? manualResult.reason : 'N/A'
+        };
+    } catch (e) {
+        results.manual = { name: 'manual', prediction: null, Dotincay: 0, Lydo: 'Lỗi: ' + e.message };
+    }
 
     // ===== ALGO 3: DU_DOAN_JS =====
     try {
-        const duResult = du_doan_js(data_kq, 0, {}, xx_str, [], { 
-            totals: totals, 
-            da_be_tai: false, 
-            da_be_xiu: false 
-        });
+        const data_store = { totals: totals || [], da_be_tai: false, da_be_xiu: false };
+        const duResult = du_doan_js(data_kq, 0, {}, xx_str || '', [], data_store);
         results.du_doan_js = {
             name: 'du_doan_js',
             prediction: duResult.pred === 'T' ? 'Tài' : 'Xỉu',
-            Dotincay: duResult.score || 0,
+            Dotincay: typeof duResult.score === 'number' ? duResult.score : 0,
             Lydo: duResult.reason || 'N/A'
         };
     } catch (e) {
@@ -892,32 +871,72 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
         };
     }
 
-    // ===== ALGO 4: COMBINED PREDICT =====
-    const combinedResult = predictCombined(history);
-    results.combined = {
-        name: 'combined',
-        prediction: combinedResult.prediction || null,
-        Dotincay: combinedResult.confidence || 0,
-        Lydo: combinedResult.reason || 'N/A'
-    };
+    // ===== ALGO 4: COMBINED PREDICT (TỪ MODULE.JS) =====
+    try {
+        const combinedResult = combinedPredict(history);
+        if (combinedResult && typeof combinedResult === 'object') {
+            results.combined = {
+                name: 'combined',
+                prediction: combinedResult.prediction || null,
+                Dotincay: typeof combinedResult.confidence === 'number' ? combinedResult.confidence : 0,
+                Lydo: combinedResult.details?.reason || combinedResult.reason || 'Không có lý do'
+            };
+        } else {
+            results.combined = { 
+                name: 'combined', 
+                prediction: null, 
+                Dotincay: 0, 
+                Lydo: 'combinedPredict trả về null hoặc invalid' 
+            };
+        }
+    } catch (e) {
+        results.combined = { 
+            name: 'combined', 
+            prediction: null, 
+            Dotincay: 0, 
+            Lydo: 'Lỗi combined: ' + (e.message || 'unknown') 
+        };
+    }
 
     // ===== TỔNG HỢP VOTE =====
     const votes = { 'Tài': 0, 'Xỉu': 0 };
     const confidences = [];
     const validAlgos = [];
-    
+
     for (const [key, algo] of Object.entries(results)) {
-        if (algo.prediction) {
-            votes[algo.prediction] = (votes[algo.prediction] || 0) + 1;
-            confidences.push(algo.Dotincay);
-            validAlgos.push({ key, ...algo });
+        if (algo.prediction && typeof algo.prediction === 'string') {
+            const pred = algo.prediction.trim();
+            if (pred === 'Tài' || pred === 'Xỉu') {
+                votes[pred] = (votes[pred] || 0) + 1;
+                const conf = typeof algo.Dotincay === 'number' ? algo.Dotincay : 0;
+                confidences.push(Math.min(100, Math.max(0, conf)));
+                validAlgos.push({ key, ...algo, prediction: pred });
+            }
         }
     }
 
+    // FALLBACK: nếu không có thuật toán nào
+    if (validAlgos.length === 0) {
+        return {
+            final: { 
+                prediction: 'Tài', 
+                confidence: 50, 
+                reason: '❓ Không đủ dữ liệu từ các thuật toán → Mặc định Tài (50%)' 
+            },
+            algorithms: results,
+            votes: { 'Tài': 0, 'Xỉu': 0 },
+            valid_algos_count: 0,
+            avg_confidence: 50
+        };
+    }
+
+    // Tính avg confidence (đảm bảo không NaN)
     let avgConfidence = confidences.length > 0 
         ? Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length) 
-        : 0;
+        : 50;
+    avgConfidence = Math.min(100, Math.max(0, avgConfidence));
 
+    // Xử lý finalPred và reason
     let finalPred = 'Tài';
     let finalReason = '';
 
@@ -930,35 +949,34 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
         finalReason = `✅ ${finalPred} (${avgConfidence}%) - ${votes['Xỉu']}/${validAlgos.length} thuật toán đồng thuận`;
     } 
     else {
-        if (validAlgos.length === 0) {
+        const taiAlgos = validAlgos.filter(a => a.prediction === 'Tài');
+        const xiuAlgos = validAlgos.filter(a => a.prediction === 'Xỉu');
+        
+        const taiTotalConf = taiAlgos.reduce((sum, a) => sum + (typeof a.Dotincay === 'number' ? a.Dotincay : 0), 0);
+        const xiuTotalConf = xiuAlgos.reduce((sum, a) => sum + (typeof a.Dotincay === 'number' ? a.Dotincay : 0), 0);
+        
+        if (taiTotalConf > xiuTotalConf) {
             finalPred = 'Tài';
-            finalReason = `❓ Mặc định ${finalPred} (50%) - Không đủ dữ liệu`;
-        } else {
-            const taiAlgos = validAlgos.filter(a => a.prediction === 'Tài');
-            const xiuAlgos = validAlgos.filter(a => a.prediction === 'Xỉu');
-            
-            const taiTotalConf = taiAlgos.reduce((sum, a) => sum + a.Dotincay, 0);
-            const xiuTotalConf = xiuAlgos.reduce((sum, a) => sum + a.Dotincay, 0);
-            
-            if (taiTotalConf > xiuTotalConf) {
-                finalPred = 'Tài';
-                finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) → Chọn Tài (tổng độ tin cậy ${taiTotalConf}% > ${xiuTotalConf}%)`;
-            } 
-            else if (xiuTotalConf > taiTotalConf) {
-                finalPred = 'Xỉu';
-                finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) → Chọn Xỉu (tổng độ tin cậy ${xiuTotalConf}% > ${taiTotalConf}%)`;
-            } 
-            else {
-                validAlgos.sort((a, b) => b.Dotincay - a.Dotincay);
-                const bestAlgo = validAlgos[0];
-                finalPred = bestAlgo.prediction;
-                finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) + tổng độ tin cậy bằng nhau → Chọn "${bestAlgo.key}" (${bestAlgo.prediction}, ${bestAlgo.Dotincay}%)`;
-            }
+            finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) → Chọn Tài (tổng độ tin cậy ${taiTotalConf}% > ${xiuTotalConf}%)`;
+        } 
+        else if (xiuTotalConf > taiTotalConf) {
+            finalPred = 'Xỉu';
+            finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) → Chọn Xỉu (tổng độ tin cậy ${xiuTotalConf}% > ${taiTotalConf}%)`;
+        } 
+        else {
+            validAlgos.sort((a, b) => (b.Dotincay || 0) - (a.Dotincay || 0));
+            const bestAlgo = validAlgos[0];
+            finalPred = bestAlgo.prediction;
+            finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) + tổng độ tin cậy bằng nhau → Chọn "${bestAlgo.key}" (${bestAlgo.prediction}, ${bestAlgo.Dotincay || 0}%)`;
         }
     }
 
     return {
-        final: { prediction: finalPred, confidence: avgConfidence, reason: finalReason },
+        final: { 
+            prediction: finalPred, 
+            confidence: avgConfidence, 
+            reason: finalReason || `Dự đoán ${finalPred} với độ tin cậy ${avgConfidence}%` 
+        },
         algorithms: results,
         votes: votes,
         valid_algos_count: validAlgos.length,
@@ -1072,54 +1090,54 @@ async function fetchAndPredict(gameName, apiType, url) {
         // DỰ ĐOÁN
         const prediction = predictAllAlgorithms(data_kq, totals, xx_str);
         
-        // Lưu kết quả với format JSON chuẩn
+        // Lưu kết quả với format JSON chuẩn - ĐÃ SỬA du_doan → dudoan
         store.prediction = {
             game: gameName,
             api_type: apiType,
             source_url: url,
             key: key,
             Phien: phien,
-            Phien_du_doan: incrementPhien(phien),
-            Xuc_xac1: x1,
-            Xuc_xac2: x2,
-            Xuc_xac3: x3,
-            Tong: tong,
-            Ketqua: ketqua,
-            Du_doan: prediction.final.prediction,
-            Confidence: prediction.avg_confidence,
-            reason: prediction.final.reason,
-            cre: CONFIG.CREATOR_ID,
+            Phien_du_doan: incrementPhien(phien) || '001',
+            Xuc_xac1: x1 || 0,
+            Xuc_xac2: x2 || 0,
+            Xuc_xac3: x3 || 0,
+            Tong: tong || 0,
+            Ketqua: ketqua || 'Không xác định',
+            Du_doan: prediction.final.prediction || 'Tài',
+            Confidence: typeof prediction.avg_confidence === 'number' ? prediction.avg_confidence : 50,
+            reason: prediction.final.reason || 'Không có lý do',
+            cre: CONFIG.CREATOR_ID || '@bucactaodi',
             meta: {
                 timestamp: new Date().toISOString(),
-                history_length: store.history.length
+                history_length: store.history.length || 0
             },
             algorithms: {
                 thuat_toan_1: {
                     ten: 'Pattern Database',
-                    du_doan: prediction.algorithms.pattern_db.prediction || 'Chưa đủ dữ liệu',
-                    Dotincay: prediction.algorithms.pattern_db.Dotincay,
-                    Lydo: prediction.algorithms.pattern_db.Lydo
+                    dudoan: prediction.algorithms.pattern_db?.prediction || 'Chưa đủ dữ liệu',
+                    Dotincay: typeof prediction.algorithms.pattern_db?.Dotincay === 'number' ? prediction.algorithms.pattern_db.Dotincay : 0,
+                    Lydo: prediction.algorithms.pattern_db?.Lydo || 'N/A'
                 },
                 thuat_toan_2: {
                     ten: 'Manual Patterns',
-                    du_doan: prediction.algorithms.manual.prediction || 'N/A',
-                    Dotincay: prediction.algorithms.manual.Dotincay,
-                    Lydo: prediction.algorithms.manual.Lydo
+                    dudoan: prediction.algorithms.manual?.prediction || 'N/A',
+                    Dotincay: typeof prediction.algorithms.manual?.Dotincay === 'number' ? prediction.algorithms.manual.Dotincay : 0,
+                    Lydo: prediction.algorithms.manual?.Lydo || 'N/A'
                 },
                 thuat_toan_3: {
                     ten: 'Du Doan JS',
-                    du_doan: prediction.algorithms.du_doan_js.prediction,
-                    Dotincay: prediction.algorithms.du_doan_js.Dotincay,
-                    Lydo: prediction.algorithms.du_doan_js.Lydo
+                    dudoan: prediction.algorithms.du_doan_js?.prediction || 'N/A',
+                    Dotincay: typeof prediction.algorithms.du_doan_js?.Dotincay === 'number' ? prediction.algorithms.du_doan_js.Dotincay : 0,
+                    Lydo: prediction.algorithms.du_doan_js?.Lydo || 'N/A'
                 },
                 thuat_toan_4: {
-                    ten: 'Combined Predict',
-                    du_doan: prediction.algorithms.combined.prediction || 'N/A',
-                    Dotincay: prediction.algorithms.combined.Dotincay,
-                    Lydo: prediction.algorithms.combined.Lydo
+                    ten: 'Combined Predict (50+ algorithms)',
+                    dudoan: prediction.algorithms.combined?.prediction || 'N/A',
+                    Dotincay: typeof prediction.algorithms.combined?.Dotincay === 'number' ? prediction.algorithms.combined.Dotincay : 0,
+                    Lydo: prediction.algorithms.combined?.Lydo || 'N/A'
                 }
             },
-            votes: prediction.votes
+            votes: prediction.votes || { 'Tài': 0, 'Xỉu': 0 }
         };
         
         store.lastUpdate = new Date().toISOString();

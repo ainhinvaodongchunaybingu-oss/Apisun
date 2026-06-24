@@ -6,10 +6,8 @@
 
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3400;
-
-// Import module dự đoán (nếu có)
-// const { combinedPredict } = require('./module.js');
+const PORT = process.env.PORT || 4400;
+const { combinedPredict } = require('./module.js');
 
 // ============================================================
 // CORS
@@ -99,9 +97,12 @@ const API_SOURCES = {
     }
 };
 
+// ============================================================
+// PATTERN DATABASE
+// ============================================================
 const PATTERN_DB = {
   "TXT": { "prediction": "Xỉu", "confidence": 68 },
-  "TTXX": { "prediction": "Tài", "confidence": 87 }, // Giữ bản confidence cao hơn (87 > 57)
+  "TTXX": { "prediction": "Tài", "confidence": 87 },
   "XXTXX": { "prediction": "Tài", "confidence": 59 },
   "TTX": { "prediction": "Xỉu", "confidence": 73 },
   "XTT": { "prediction": "Tài", "confidence": 92 },
@@ -350,6 +351,7 @@ const PATTERN_DB = {
   "XXXXXXT": { "prediction": "Tài", "confidence": 94 },
   "XXXXXXX": { "prediction": "Tài", "confidence": 83 }
 };
+
 // ============================================================
 // MANUAL PATTERNS (THUẬT TOÁN 2)
 // ============================================================
@@ -595,9 +597,7 @@ function matchManualPattern(totals) {
             }
         }
         if (match) {
-            // Random confidence từ 85 đến 99
-            const randomConfidence = Math.floor(Math.random() * 15) + 85; // 85-99
-            
+            const randomConfidence = Math.floor(Math.random() * 15) + 85;
             return { 
                 pred: pat.pred, 
                 confidence: randomConfidence,
@@ -818,36 +818,31 @@ function classifyRoad(seq) {
     return 'mixed';
 }
 
+function last(arr, n) { return arr.slice(-n); }
+function counts(arr) {
+    const c = { T: 0, X: 0 };
+    for (const x of arr) if (x === 'T') c.T++; else if (x === 'X') c.X++;
+    return c;
+}
+function computeRunLength(seq) {
+    if (!seq || seq.length === 0) return { run: 0, char: null };
+    let run = 1, char = seq[seq.length - 1];
+    for (let i = seq.length - 2; i >= 0; i--) {
+        if (seq[i] === char) run++;
+        else break;
+    }
+    return { run, char };
+}
 
 // ============================================================
 // THUẬT TOÁN 4: COMBINED PREDICT - PLACEHOLDER
 // ============================================================
 function predictCombined(history) {
-    // Thêm code thuật toán 4 của bạn ở đây
-    // Nếu có module combinedPredict:
-    // try {
-    //     const { combinedPredict } = require('./module.js');
-    //     const formatted = history.map(h => ({
-    //         result: h.Ket_qua || 'Tài',
-    //         dice: [h.Xuc_xac_1 || 0, h.Xuc_xac_2 || 0, h.Xuc_xac_3 || 0],
-    //         total: h.Tong || 0
-    //     }));
-    //     const result = combinedPredict(formatted);
-    //     return {
-    //         prediction: result.prediction,
-    //         confidence: result.confidence,
-    //         reason: `Combined: ${result.prediction} (${result.confidence}%)`
-    //     };
-    // } catch (e) {
-    //     return { prediction: null, confidence: 0, reason: 'Lỗi module' };
-    // }
-    
     return { prediction: null, confidence: 0, reason: 'Module combinedPredict chưa cấu hình' };
 }
 
 // ============================================================
 // HÀM DỰ ĐOÁN TỔNG HỢP 4 THUẬT TOÁN
-// Hòa vote: so sánh tổng confidence 2 nhóm Tài/Xỉu
 // ============================================================
 function predictAllAlgorithms(data_kq, totals, xx_str) {
     const results = {};
@@ -862,8 +857,8 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
     results.pattern_db = {
         name: 'pattern_db',
         prediction: dbResult.prediction === 'T' ? 'Tài' : (dbResult.prediction === 'X' ? 'Xỉu' : null),
-        confidence: dbResult.confidence || 0,
-        reason: dbResult.reason || 'N/A'
+        Dotincay: dbResult.confidence || 0,
+        Lydo: dbResult.reason || 'N/A'
     };
 
     // ===== ALGO 2: MANUAL PATTERNS =====
@@ -871,8 +866,8 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
     results.manual = {
         name: 'manual',
         prediction: manualResult ? (manualResult.pred === 'T' ? 'Tài' : 'Xỉu') : null,
-        confidence: manualResult ? manualResult.confidence : 0,
-        reason: manualResult ? manualResult.reason : 'N/A'
+        Dotincay: manualResult ? manualResult.confidence : 0,
+        Lydo: manualResult ? manualResult.reason : 'N/A'
     };
 
     // ===== ALGO 3: DU_DOAN_JS =====
@@ -885,11 +880,16 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
         results.du_doan_js = {
             name: 'du_doan_js',
             prediction: duResult.pred === 'T' ? 'Tài' : 'Xỉu',
-            confidence: duResult.score,
-            reason: duResult.reason
+            Dotincay: duResult.score || 0,
+            Lydo: duResult.reason || 'N/A'
         };
     } catch (e) {
-        results.du_doan_js = { name: 'du_doan_js', prediction: null, confidence: 0, reason: 'Lỗi' };
+        results.du_doan_js = { 
+            name: 'du_doan_js', 
+            prediction: null, 
+            Dotincay: 0, 
+            Lydo: 'Lỗi: ' + (e.message || e) 
+        };
     }
 
     // ===== ALGO 4: COMBINED PREDICT =====
@@ -897,8 +897,8 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
     results.combined = {
         name: 'combined',
         prediction: combinedResult.prediction || null,
-        confidence: combinedResult.confidence || 0,
-        reason: combinedResult.reason || 'N/A'
+        Dotincay: combinedResult.confidence || 0,
+        Lydo: combinedResult.reason || 'N/A'
     };
 
     // ===== TỔNG HỢP VOTE =====
@@ -906,11 +906,10 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
     const confidences = [];
     const validAlgos = [];
     
-    // Thu thập tất cả thuật toán có dự đoán hợp lệ
     for (const [key, algo] of Object.entries(results)) {
         if (algo.prediction) {
             votes[algo.prediction] = (votes[algo.prediction] || 0) + 1;
-            confidences.push(algo.confidence);
+            confidences.push(algo.Dotincay);
             validAlgos.push({ key, ...algo });
         }
     }
@@ -922,48 +921,38 @@ function predictAllAlgorithms(data_kq, totals, xx_str) {
     let finalPred = 'Tài';
     let finalReason = '';
 
-    // ===== QUYẾT ĐỊNH KẾT QUẢ =====
     if (votes['Tài'] > votes['Xỉu']) {
-        // Tài thắng vote
         finalPred = 'Tài';
         finalReason = `✅ ${finalPred} (${avgConfidence}%) - ${votes['Tài']}/${validAlgos.length} thuật toán đồng thuận`;
     } 
     else if (votes['Xỉu'] > votes['Tài']) {
-        // Xỉu thắng vote
         finalPred = 'Xỉu';
         finalReason = `✅ ${finalPred} (${avgConfidence}%) - ${votes['Xỉu']}/${validAlgos.length} thuật toán đồng thuận`;
     } 
     else {
-        // ===== HÒA VOTE =====
         if (validAlgos.length === 0) {
-            // Không có thuật toán nào dự đoán được
             finalPred = 'Tài';
             finalReason = `❓ Mặc định ${finalPred} (50%) - Không đủ dữ liệu`;
         } else {
-            // Tách 2 nhóm Tài và Xỉu
             const taiAlgos = validAlgos.filter(a => a.prediction === 'Tài');
             const xiuAlgos = validAlgos.filter(a => a.prediction === 'Xỉu');
             
-            // Tính tổng confidence của mỗi nhóm
-            const taiTotalConf = taiAlgos.reduce((sum, a) => sum + a.confidence, 0);
-            const xiuTotalConf = xiuAlgos.reduce((sum, a) => sum + a.confidence, 0);
+            const taiTotalConf = taiAlgos.reduce((sum, a) => sum + a.Dotincay, 0);
+            const xiuTotalConf = xiuAlgos.reduce((sum, a) => sum + a.Dotincay, 0);
             
             if (taiTotalConf > xiuTotalConf) {
-                // Nhóm Tài có tổng confidence cao hơn
                 finalPred = 'Tài';
                 finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) → Chọn Tài (tổng độ tin cậy ${taiTotalConf}% > ${xiuTotalConf}%)`;
             } 
             else if (xiuTotalConf > taiTotalConf) {
-                // Nhóm Xỉu có tổng confidence cao hơn
                 finalPred = 'Xỉu';
                 finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) → Chọn Xỉu (tổng độ tin cậy ${xiuTotalConf}% > ${taiTotalConf}%)`;
             } 
             else {
-                // Tổng confidence cũng bằng nhau → chọn thuật toán đơn lẻ có confidence cao nhất
-                validAlgos.sort((a, b) => b.confidence - a.confidence);
+                validAlgos.sort((a, b) => b.Dotincay - a.Dotincay);
                 const bestAlgo = validAlgos[0];
                 finalPred = bestAlgo.prediction;
-                finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) + tổng confidence bằng nhau → Chọn "${bestAlgo.key}" (${bestAlgo.prediction}, ${bestAlgo.confidence}%)`;
+                finalReason = `⚖️ Hòa vote (${votes['Tài']}-${votes['Xỉu']}) + tổng độ tin cậy bằng nhau → Chọn "${bestAlgo.key}" (${bestAlgo.prediction}, ${bestAlgo.Dotincay}%)`;
             }
         }
     }
@@ -1083,7 +1072,7 @@ async function fetchAndPredict(gameName, apiType, url) {
         // DỰ ĐOÁN
         const prediction = predictAllAlgorithms(data_kq, totals, xx_str);
         
-        // Lưu kết quả
+        // Lưu kết quả với format JSON chuẩn
         store.prediction = {
             game: gameName,
             api_type: apiType,
@@ -1097,14 +1086,39 @@ async function fetchAndPredict(gameName, apiType, url) {
             Tong: tong,
             Ketqua: ketqua,
             Du_doan: prediction.final.prediction,
-            confidence: prediction.avg_confidence,
+            Confidence: prediction.avg_confidence,
             reason: prediction.final.reason,
             cre: CONFIG.CREATOR_ID,
             meta: {
                 timestamp: new Date().toISOString(),
                 history_length: store.history.length
             },
-            algorithms: prediction.algorithms,
+            algorithms: {
+                thuat_toan_1: {
+                    ten: 'Pattern Database',
+                    du_doan: prediction.algorithms.pattern_db.prediction || 'Chưa đủ dữ liệu',
+                    Dotincay: prediction.algorithms.pattern_db.Dotincay,
+                    Lydo: prediction.algorithms.pattern_db.Lydo
+                },
+                thuat_toan_2: {
+                    ten: 'Manual Patterns',
+                    du_doan: prediction.algorithms.manual.prediction || 'N/A',
+                    Dotincay: prediction.algorithms.manual.Dotincay,
+                    Lydo: prediction.algorithms.manual.Lydo
+                },
+                thuat_toan_3: {
+                    ten: 'Du Doan JS',
+                    du_doan: prediction.algorithms.du_doan_js.prediction,
+                    Dotincay: prediction.algorithms.du_doan_js.Dotincay,
+                    Lydo: prediction.algorithms.du_doan_js.Lydo
+                },
+                thuat_toan_4: {
+                    ten: 'Combined Predict',
+                    du_doan: prediction.algorithms.combined.prediction || 'N/A',
+                    Dotincay: prediction.algorithms.combined.Dotincay,
+                    Lydo: prediction.algorithms.combined.Lydo
+                }
+            },
             votes: prediction.votes
         };
         
@@ -1145,13 +1159,12 @@ async function pollAllAPIs() {
 // ROUTES
 // ============================================================
 
-// Trang chủ
 app.get('/', (req, res) => {
     const storeList = Object.entries(gameStores).map(([key, store]) => ({
         key,
         history_count: store.history.length,
         last_prediction: store.prediction ? store.prediction.Du_doan : null,
-        confidence: store.prediction ? store.prediction.confidence : null
+        confidence: store.prediction ? store.prediction.Confidence : null
     }));
     
     res.json({
@@ -1165,7 +1178,6 @@ app.get('/', (req, res) => {
     });
 });
 
-// Tạo route động
 function createGameRoute(routeName, gameName, apiType, url) {
     app.get(`/${routeName}`, async (req, res) => {
         const key = `${gameName}-${apiType}`;
@@ -1196,7 +1208,7 @@ function createGameRoute(routeName, gameName, apiType, url) {
             last_phien: store.lastPhien,
             last_prediction: store.prediction ? {
                 prediction: store.prediction.Du_doan,
-                confidence: store.prediction.confidence,
+                confidence: store.prediction.Confidence,
                 phien_du_doan: store.prediction.Phien_du_doan
             } : null,
             history: store.history.slice(-50)
@@ -1204,7 +1216,6 @@ function createGameRoute(routeName, gameName, apiType, url) {
     });
 }
 
-// Đăng ký tất cả route
 function registerAllRoutes() {
     for (const [gameName, config] of Object.entries(API_SOURCES)) {
         for (const [apiType, url] of Object.entries(config)) {
@@ -1222,7 +1233,6 @@ function registerAllRoutes() {
 
 registerAllRoutes();
 
-// Tổng quan
 app.get('/summary', (req, res) => {
     const summary = {};
     for (const [key, store] of Object.entries(gameStores)) {
@@ -1233,7 +1243,7 @@ app.get('/summary', (req, res) => {
             last_tong: store.history.length > 0 ? store.history[store.history.length - 1].Tong : null,
             prediction: store.prediction ? {
                 du_doan: store.prediction.Du_doan,
-                confidence: store.prediction.confidence,
+                confidence: store.prediction.Confidence,
                 phien_du_doan: store.prediction.Phien_du_doan,
                 reason: store.prediction.reason
             } : null,
@@ -1243,7 +1253,6 @@ app.get('/summary', (req, res) => {
     res.json({ timestamp: new Date().toISOString(), stores: summary });
 });
 
-// Force poll
 app.get('/force-poll', async (req, res) => {
     res.json({ message: 'Đang polling...' });
     await pollAllAPIs();

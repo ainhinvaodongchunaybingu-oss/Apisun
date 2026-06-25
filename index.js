@@ -1170,7 +1170,7 @@ async function pollAllAPIs() {
     }
     
     await Promise.allSettled(promises);
-    console.log(`📊 [${now}] ${success} OK | ${fail} fail`);
+    
 }
 
 // ============================================================
@@ -1296,8 +1296,7 @@ console.log(`║  👤 Creator: ${CONFIG.CREATOR_ID}            ║`);
 console.log(`╚══════════════════════════════════════════╝\n`);
 
 app.listen(PORT, () => {
-    console.log(`✅ Server: http://localhost:${PORT}`);
-    console.log(`📋 Routes:`);
+    
     for (const [gameName, config] of Object.entries(API_SOURCES)) {
         for (const [apiType, url] of Object.entries(config)) {
             const routeName = apiType === 'tx' ? `tx${gameName}` :
@@ -1305,11 +1304,10 @@ app.listen(PORT, () => {
                              apiType === 'sicbo' ? `sicbo${gameName}` :
                              apiType === 'sicbo40s' ? `sicbo40s${gameName}` :
                              `${apiType}${gameName}`;
-            console.log(`   http://localhost:${PORT}/${routeName}`);
+            
         }
     }
-    console.log(`   http://localhost:${PORT}/summary`);
-    console.log(`   http://localhost:${PORT}/force-poll\n`);
+    
 });
 
 setTimeout(pollAllAPIs, 2000);

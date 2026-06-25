@@ -1146,7 +1146,7 @@ async function fetchAndPredict(gameName, apiType, url) {
         return store.prediction;
         
     } catch (error) {
-        
+        console.log(`❌ [${key}] ${error.message}`);
         return null;
     }
 }
@@ -1170,7 +1170,7 @@ async function pollAllAPIs() {
     }
     
     await Promise.allSettled(promises);
-    
+    console.log(`📊 [${now}] ${success} OK | ${fail} fail`);
 }
 
 // ============================================================
@@ -1288,9 +1288,16 @@ setInterval(() => {
 // ============================================================
 const totalEndpoints = Object.values(API_SOURCES).reduce((s, c) => s + Object.keys(c).length, 0);
 
+console.log(`\n╔══════════════════════════════════════════╗`);
+console.log(`║  🚀 PREDICTOR - 4 THUẬT TOÁN           ║`);
+console.log(`║  📌 ${Object.keys(API_SOURCES).length} games | ${totalEndpoints} endpoints       ║`);
+console.log(`║  ⏱️  Poll: ${CONFIG.POLL_INTERVAL}ms                   ║`);
+console.log(`║  👤 Creator: ${CONFIG.CREATOR_ID}            ║`);
+console.log(`╚══════════════════════════════════════════╝\n`);
 
 app.listen(PORT, () => {
-    
+    console.log(`✅ Server: http://localhost:${PORT}`);
+    console.log(`📋 Routes:`);
     for (const [gameName, config] of Object.entries(API_SOURCES)) {
         for (const [apiType, url] of Object.entries(config)) {
             const routeName = apiType === 'tx' ? `tx${gameName}` :
@@ -1298,10 +1305,11 @@ app.listen(PORT, () => {
                              apiType === 'sicbo' ? `sicbo${gameName}` :
                              apiType === 'sicbo40s' ? `sicbo40s${gameName}` :
                              `${apiType}${gameName}`;
-            
+            console.log(`   http://localhost:${PORT}/${routeName}`);
         }
     }
-    
+    console.log(`   http://localhost:${PORT}/summary`);
+    console.log(`   http://localhost:${PORT}/force-poll\n`);
 });
 
 setTimeout(pollAllAPIs, 2000);

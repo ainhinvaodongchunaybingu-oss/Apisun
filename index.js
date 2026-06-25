@@ -1146,7 +1146,7 @@ async function fetchAndPredict(gameName, apiType, url) {
         return store.prediction;
         
     } catch (error) {
-        console.log(`❌ [${key}] ${error.message}`);
+        
         return null;
     }
 }
@@ -1288,12 +1288,6 @@ setInterval(() => {
 // ============================================================
 const totalEndpoints = Object.values(API_SOURCES).reduce((s, c) => s + Object.keys(c).length, 0);
 
-console.log(`\n╔══════════════════════════════════════════╗`);
-console.log(`║  🚀 PREDICTOR - 4 THUẬT TOÁN           ║`);
-console.log(`║  📌 ${Object.keys(API_SOURCES).length} games | ${totalEndpoints} endpoints       ║`);
-console.log(`║  ⏱️  Poll: ${CONFIG.POLL_INTERVAL}ms                   ║`);
-console.log(`║  👤 Creator: ${CONFIG.CREATOR_ID}            ║`);
-console.log(`╚══════════════════════════════════════════╝\n`);
 
 app.listen(PORT, () => {
     

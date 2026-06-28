@@ -34,66 +34,66 @@ const CONFIG = {
 // API SOURCES
 // ============================================================
 const API_SOURCES = {
-    "sunwin": { "tx": "https://trails-wish-motel-legacy.trycloudflare.com/api/tx" },
-    "Ogkfan": { "txmd5": "https://guidance-discrete-dive-navigate.trycloudflare.com/api/txmd5/latest" },
-    "Xocdia88": { "tx": "https://pollution-seconds-sail-strikes.trycloudflare.com/api/taixiu" },
+    "sunwin": { "tx": "https://various-collaborative-heights-sue.trycloudflare.com/api/tx" },
+    "Ogkfan": { "txmd5": "https://cargo-summary-repository-pole.trycloudflare.com/api/txmd5/latest" },
+    "Xocdia88": { "txmd5": "https://songs-crest-lecture-aka.trycloudflare.com/api/txmd5" },
     "Hitclub": {
-        "tx": "https://subdivision-term-came-attempting.trycloudflare.com/api/tx",
-        "txmd5": "https://subdivision-term-came-attempting.trycloudflare.com/api/txmd5"
+        "tx": "https://weighted-weapon-spiritual-oklahoma.trycloudflare.com/api/tx",
+        "txmd5": "https://weighted-weapon-spiritual-oklahoma.trycloudflare.com/api/txmd5"
     },
     "Lc79": {
-        "tx": "https://thread-broke-artwork-compound.trycloudflare.com/api/tx",
-        "txmd5": "https://thread-broke-artwork-compound.trycloudflare.com/api/txmd5"
+        "tx": "https://entity-scholarship-cruise-randy.trycloudflare.com/api/tx",
+        "txmd5": "https://entity-scholarship-cruise-randy.trycloudflare.com/api/txmd5"
     },
     "Betvip": {
-        "tx": "https://stored-could-elder-mini.trycloudflare.com/api/tx",
-        "txmd5": "https://stored-could-elder-mini.trycloudflare.com/api/txmd5"
+        "tx": "https://pmc-winter-buddy-jackets.trycloudflare.com/api/tx",
+        "txmd5": "https://pmc-winter-buddy-jackets.trycloudflare.com/api/txmd5"
     },
     "789club": {
-        "tx": "https://packet-veterinary-organ-ministers.trycloudflare.com/api/tx",
+        "tx": "https://publications-consistently-gmbh-chester.trycloudflare.com/api/tx",
         "sicbo": "https://leslie-richardson-rrp-virtue.trycloudflare.com/sicbo/789club"
     },
     "B52": {
-        "tx": "https://years-expiration-autos-concert.trycloudflare.com/taixiu",
-        "txmd5": "https://years-expiration-autos-concert.trycloudflare.com/txmd5",
+        "tx": "https://subscription-chat-fed-memo.trycloudflare.com/taixiu",
+        "txmd5": "https://subscription-chat-fed-memo.trycloudflare.com/txmd5",
         "sicbo": "https://leslie-richardson-rrp-virtue.trycloudflare.com/sicbo/b52"
     },
     "Iwin": {
-        "tx": "https://seek-vessels-peripherals-song.trycloudflare.com/api/tx",
-        "txmd5": "https://seek-vessels-peripherals-song.trycloudflare.com/api/txmd5"
+        "tx": "https://router-leaving-wrap-signs.trycloudflare.com/api/tx",
+        "txmd5": "https://router-leaving-wrap-signs.trycloudflare.com/api/txmd5"
     },
     "Max789": {
-        "tx": "https://expected-paying-pins-childhood.trycloudflare.com/api/tx",
-        "txmd5": "https://expected-paying-pins-childhood.trycloudflare.com/api/txmd5"
+        "tx": "https://deborah-went-industrial-jewelry.trycloudflare.com/api/tx",
+        "txmd5": "https://deborah-went-industrial-jewelry.trycloudflare.com/api/txmd5"
     },
     "Son789": {
-        "tx": "https://howto-out-excluding-tan.trycloudflare.com/api/tx",
-        "txmd5": "https://howto-out-excluding-tan.trycloudflare.com/api/txmd5"
+        "tx": "https://refers-acts-discussed-genre.trycloudflare.com/api/tx",
+        "txmd5": "https://refers-acts-discussed-genre.trycloudflare.com/api/txmd5"
     },
     "Luck8": {
-        "txmd5": "https://drawn-legislation-applicant-roberts.trycloudflare.com/api/txmd5",
+        "txmd5": "https://char-und-challenging-assumes.trycloudflare.com/api/txmd5",
         "sicbo40s": "https://drawn-legislation-applicant-roberts.trycloudflare.com/api/sicbo40"
     },
     "Sumvin": { "txmd5": "https://stories-meetings-injection-headlines.trycloudflare.com/api/md5" },
     "68gb": {
-        "tx": "https://financing-patio-beast-invention.trycloudflare.com/api/68/thuong",
+        "tx": "https://temp-jamie-advert-environmental.trycloudflare.com/api/68/thuong",
         "txmd5": "https://chuck-ent-nicole-leadership.trycloudflare.com/api/68/md5"
     },
     "Sun789": {
-        "tx": "https://speeds-built-attendance-dedicated.trycloudflare.com/api/tx",
-        "txmd5": "https://speeds-built-attendance-dedicated.trycloudflare.com/api/txmd5"
+        "tx": "https://along-san-excited-permitted.trycloudflare.com/api/tx",
+        "txmd5": "https://along-san-excited-permitted.trycloudflare.com/api/txmd5"
     },
     "Sunvip": {
         "tx": "https://leader-analysis-wool-inspector.trycloudflare.com/api/tx",
         "txmd5": "https://leader-analysis-wool-inspector.trycloudflare.com/api/txmd5"
     },
     "Hot789": {
-        "tx": "https://improve-museum-der-levy.trycloudflare.com/api/tx",
-        "txmd5": "https://improve-museum-der-levy.trycloudflare.com/api/txmd5"
+        "tx": "https://pastor-pod-lemon-translated.trycloudflare.com/api/tx",
+        "txmd5": "https://pastor-pod-lemon-translated.trycloudflare.com/api/txmd5"
     },
     "Ta28": {
-        "tx": "https://conversation-selling-slowly-bride.trycloudflare.com/api/tx",
-        "txmd5": "https://conversation-selling-slowly-bride.trycloudflare.com/api/txmd5"
+        "tx": "https://synthesis-resist-geo-unlike.trycloudflare.com/api/tx",
+        "txmd5": "https://synthesis-resist-geo-unlike.trycloudflare.com/api/txmd5"
     }
 };
 
